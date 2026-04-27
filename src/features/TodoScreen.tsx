@@ -133,7 +133,9 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
   const loadTodos = useCallback(async () => {
     setError(null);
     try {
-      const data = await apiRequest<TodoItem[]>(`/todos/?category=${activeCategory}`);
+      // If calendar is selected, we might want to fetch all or default to a view. Let's fetch all for calendar to see all tasks on dots.
+      const queryCategory = activeCategory === 'calendar' ? '' : `?category=${activeCategory}`;
+      const data = await apiRequest<TodoItem[]>(`/todos/${queryCategory}`);
       setTodos(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载待办失败');
@@ -165,7 +167,7 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
         method: 'POST',
         body: {
           title,
-          category: activeCategory,
+          category: activeCategory === 'calendar' ? 'work' : activeCategory,
           is_completed: false,
           due_date: selectedDate,
         },
@@ -253,11 +255,18 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
 
   const activeColor = categories.find((item) => item.value === activeCategory)?.color || colors.primary;
 
+  const headerSubtitle = useMemo(() => {
+    if (activeCategory === 'calendar') {
+      return `${todos.length} 项日程 · 日历视图`;
+    }
+    return `${pendingCount} 项待处理 · ${activeCategory === 'work' ? '工作清单' : '生活清单'}`;
+  }, [activeCategory, pendingCount, todos.length]);
+
   return (
     <Screen>
       <Header
         title="待办"
-        subtitle={`${pendingCount} 项待处理 · ${activeCategory === 'work' ? '工作清单' : '生活清单'}`}
+        subtitle={headerSubtitle}
         action={<IconButton name="chevron-back" label="返回模块列表" soft onPress={onBack} />}
       />
       <ScrollView
@@ -282,24 +291,26 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
           })}
         </View>
 
-        <View style={styles.quickAdd}>
-          <TextInput
-            value={newTitle}
-            onChangeText={setNewTitle}
-            placeholder={`添加一个新的${activeCategory === 'work' ? '工作' : '生活'}待办...`}
-            placeholderTextColor={colors.faint}
-            returnKeyType="done"
-            onSubmitEditing={addTodo}
-            style={styles.quickInput}
-          />
-          <Pressable
-            accessibilityRole="button"
-            onPress={addTodo}
-            disabled={saving || !newTitle.trim()}
-            style={[styles.addButton, { backgroundColor: activeColor }, (saving || !newTitle.trim()) && styles.disabled]}>
-            <Ionicons name="add" size={22} color="#fff" />
-          </Pressable>
-        </View>
+        {activeCategory !== 'calendar' ? (
+          <View style={styles.quickAdd}>
+            <TextInput
+              value={newTitle}
+              onChangeText={setNewTitle}
+              placeholder={`添加一个新的${activeCategory === 'life' ? '生活' : '工作'}待办...`}
+              placeholderTextColor={colors.faint}
+              returnKeyType="done"
+              onSubmitEditing={addTodo}
+              style={styles.quickInput}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={addTodo}
+              disabled={saving || !newTitle.trim()}
+              style={[styles.addButton, { backgroundColor: activeColor }, (saving || !newTitle.trim()) && styles.disabled]}>
+              <Ionicons name="add" size={22} color="#fff" />
+            </Pressable>
+          </View>
+        ) : null}
         {selectedDate ? (
           <View style={styles.selectedDateRow}>
             <Text style={styles.selectedDateText}>将默认添加至：{selectedDate}</Text>
@@ -311,8 +322,63 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
 
         <StateView loading={loading} error={error} onRetry={loadTodos} />
 
-        {!loading && !error ? (
-          <View style={styles.todoList}>
+        {activeCategory === 'calendar' ? (
+          <View style={styles.calendarCard}>
+            <View style={styles.calendarHeader}>
+              <Text style={styles.calendarTitle}>日历日程</Text>
+              <View style={styles.monthControl}>
+                <IconButton
+                  name="chevron-back"
+                  label="上个月"
+                  onPress={() => setCurrentDate((date) => new Date(date.getFullYear(), date.getMonth() - 1, 1))}
+                />
+                <Text style={styles.monthText}>{currentDate.getFullYear()}年 {monthNames[currentDate.getMonth()]}</Text>
+                <IconButton
+                  name="chevron-forward"
+                  label="下个月"
+                  onPress={() => setCurrentDate((date) => new Date(date.getFullYear(), date.getMonth() + 1, 1))}
+                />
+              </View>
+            </View>
+            <View style={styles.weekRow}>
+              {weekNames.map((day) => (
+                <Text key={day} style={styles.weekText}>周{day}</Text>
+              ))}
+            </View>
+            <View style={styles.calendarGrid}>
+              {calendarDays.map((day) => {
+                const dayTodos = todos.filter((todo) => todo.due_date === day.date);
+                const isToday = day.date === todayString;
+                const isSelected = day.date === selectedDate;
+                return (
+                  <Pressable
+                    key={day.date}
+                    onPress={() => setSelectedDate((current) => (current === day.date ? null : day.date))}
+                    style={[styles.dayCell, isSelected && styles.dayCellSelected, !day.currentMonth && styles.dayCellMuted]}>
+                    <Text style={[styles.dayNumber, isToday && styles.todayNumber, isSelected && styles.selectedDayNumber]}>{day.day}</Text>
+                    <View style={styles.dayTodoDots}>
+                      {dayTodos.slice(0, 2).map((todo) => (
+                        <Pressable
+                          key={todo.id}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            selectTodo(todo);
+                            setSelectedDate(day.date);
+                          }}
+                          style={[styles.dayTodoDot, { backgroundColor: todo.is_completed ? colors.faint : (todo.category === 'life' ? colors.success : colors.primary) }]}
+                        />
+                      ))}
+                      {dayTodos.length > 2 ? <Text style={styles.moreDots}>+{dayTodos.length - 2}</Text> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {!loading && !error && (activeCategory !== 'calendar' || selectedDate) ? (
+          <View style={[styles.todoList, activeCategory === 'calendar' && { marginTop: spacing.lg }]}>
             {filteredTodos.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="checkmark-done-circle-outline" size={36} color={colors.faint} />
@@ -325,7 +391,7 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
                   key={todo.id}
                   todo={todo}
                   selected={selectedTodo?.id === todo.id}
-                  activeColor={activeColor}
+                  activeColor={activeCategory === 'calendar' ? (todo.category === 'life' ? colors.success : colors.primary) : activeColor}
                   editForm={editForm}
                   saving={saving}
                   onToggle={() => void toggleTodo(todo)}
@@ -342,59 +408,6 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
             )}
           </View>
         ) : null}
-
-        <View style={styles.calendarCard}>
-          <View style={styles.calendarHeader}>
-            <Text style={styles.calendarTitle}>日历日程</Text>
-            <View style={styles.monthControl}>
-              <IconButton
-                name="chevron-back"
-                label="上个月"
-                onPress={() => setCurrentDate((date) => new Date(date.getFullYear(), date.getMonth() - 1, 1))}
-              />
-              <Text style={styles.monthText}>{currentDate.getFullYear()}年 {monthNames[currentDate.getMonth()]}</Text>
-              <IconButton
-                name="chevron-forward"
-                label="下个月"
-                onPress={() => setCurrentDate((date) => new Date(date.getFullYear(), date.getMonth() + 1, 1))}
-              />
-            </View>
-          </View>
-          <View style={styles.weekRow}>
-            {weekNames.map((day) => (
-              <Text key={day} style={styles.weekText}>周{day}</Text>
-            ))}
-          </View>
-          <View style={styles.calendarGrid}>
-            {calendarDays.map((day) => {
-              const dayTodos = todos.filter((todo) => todo.due_date === day.date);
-              const isToday = day.date === todayString;
-              const isSelected = day.date === selectedDate;
-              return (
-                <Pressable
-                  key={day.date}
-                  onPress={() => setSelectedDate((current) => (current === day.date ? null : day.date))}
-                  style={[styles.dayCell, isSelected && styles.dayCellSelected, !day.currentMonth && styles.dayCellMuted]}>
-                  <Text style={[styles.dayNumber, isToday && styles.todayNumber, isSelected && styles.selectedDayNumber]}>{day.day}</Text>
-                  <View style={styles.dayTodoDots}>
-                    {dayTodos.slice(0, 2).map((todo) => (
-                      <Pressable
-                        key={todo.id}
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          selectTodo(todo);
-                          setSelectedDate(day.date);
-                        }}
-                        style={[styles.dayTodoDot, { backgroundColor: todo.is_completed ? colors.faint : activeColor }]}
-                      />
-                    ))}
-                    {dayTodos.length > 2 ? <Text style={styles.moreDots}>+{dayTodos.length - 2}</Text> : null}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
       </ScrollView>
     </Screen>
   );

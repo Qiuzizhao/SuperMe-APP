@@ -4,7 +4,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Linking,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -708,9 +711,10 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
   const dashboard = processed.reduce((acc, item) => {
     if (['in_use', 'idle'].includes(item.status)) {
       acc.totalOriginal += Number(item.price || 0);
+      acc.totalDailyCost += item.actualDailyCost;
     }
     return acc;
-  }, { totalOriginal: 0 });
+  }, { totalOriginal: 0, totalDailyCost: 0 });
 
   const open = (item?: Item) => {
     if (item) {
@@ -1089,6 +1093,8 @@ const styles = StyleSheet.create({
   row: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
   rowTop: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' },
   rowWrap: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  modalScroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  modalFooter: { flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end', padding: spacing.lg, borderTopColor: colors.border, borderTopWidth: 1, backgroundColor: colors.surface },
   iconColumn: { alignItems: 'center', gap: spacing.xs },
   itemTitle: { color: colors.text, fontSize: 17, fontWeight: '900', lineHeight: 23 },
   sectionTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
