@@ -116,11 +116,11 @@ function TextArea(props: React.ComponentProps<typeof TextInput>) {
 }
 
 const moodOptions = [
-  { level: 5, emoji: '😄', label: '开心' },
-  { level: 4, emoji: '🙂', label: '不错' },
-  { level: 3, emoji: '😐', label: '平静' },
-  { level: 2, emoji: '😔', label: '低落' },
-  { level: 1, emoji: '😡', label: '生气' },
+  { level: 5, emoji: MOOD_IMAGES[5], label: '开心' },
+  { level: 4, emoji: MOOD_IMAGES[4], label: '不错' },
+  { level: 3, emoji: MOOD_IMAGES[3], label: '平静' },
+  { level: 2, emoji: MOOD_IMAGES[2], label: '低落' },
+  { level: 1, emoji: MOOD_IMAGES[1], label: '生气' },
 ];
 
 function moodByLevel(level: number) {
@@ -167,7 +167,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
               <SectionCard key={item.id}>
                 <View style={styles.rowTop}>
                   <View style={styles.row}>
-                    <Text style={styles.emoji}>{mood.emoji}</Text>
+                    <Image source={mood.emoji} style={styles.emojiImage} />
                     <View>
                       <Text style={styles.itemTitle}>{item.mood_label}</Text>
                       <Text style={styles.metaText}>{compactDateTime(item.created_at)}</Text>
@@ -189,7 +189,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
             <View style={styles.moodPicker}>
               {moodOptions.map((mood) => (
                 <Pressable key={mood.level} onPress={() => setLevel(mood.level)} style={[styles.moodButton, level === mood.level && styles.moodButtonSelected]}>
-                  <Text style={styles.bigEmoji}>{mood.emoji}</Text>
+                  <Image source={mood.emoji} style={styles.bigEmojiImage} />
                   <Text style={styles.moodLabel}>{mood.label}</Text>
                 </Pressable>
               ))}
@@ -220,7 +220,7 @@ function MoodStaff({ moods }: { moods: Item[] }) {
               const top = 20 + (5 - Number(item.mood_level)) * 34;
               return (
                 <View key={item.id} style={[styles.staffPoint, { left: index * 54 + 18, top }]}>
-                  <Text style={styles.staffEmoji}>{mood.emoji}</Text>
+                  <Image source={mood.emoji} style={styles.staffEmojiImage} />
                   <Text style={styles.staffTime}>{compactDateTime(item.created_at).replace(' ', '\n')}</Text>
                 </View>
               );
@@ -1139,8 +1139,8 @@ const styles = StyleSheet.create({
   bodyText: { color: colors.textSoft, fontSize: 14, lineHeight: 21 },
   metaText: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   emptyText: { color: colors.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
-  emoji: { fontSize: 34 },
-  bigEmoji: { fontSize: 30 },
+  emojiImage: { width: 34, height: 34 },
+  bigEmojiImage: { width: 34, height: 34 },
   timeline: { gap: spacing.md },
   splitStack: { gap: spacing.md },
   tagRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
@@ -1154,8 +1154,8 @@ const styles = StyleSheet.create({
   staffCard: { backgroundColor: '#FBFAFF' },
   staff: { height: 220, position: 'relative' },
   staffLine: { backgroundColor: '#DDD6FE', height: 1, marginTop: 34, opacity: 0.8 },
-  staffPoint: { alignItems: 'center', position: 'absolute', width: 42 },
-  staffEmoji: { fontSize: 20 },
+  staffPoint: { alignItems: 'center', position: 'absolute', width: 42, gap: 4 },
+  staffEmojiImage: { width: 24, height: 24 },
   staffTime: { color: colors.faint, fontSize: 9, textAlign: 'center' },
   moodPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center' },
   moodButton: { alignItems: 'center', backgroundColor: colors.surfaceMuted, borderRadius: radius.lg, padding: spacing.md, width: 86 },
