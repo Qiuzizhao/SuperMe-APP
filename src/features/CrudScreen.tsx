@@ -171,7 +171,7 @@ export function CrudScreen({
         ) : (
           <Pressable onPress={() => handleSetActiveKey(item.key)} style={({ pressed }) => [styles.moduleCard, pressed && styles.pressed]}>
             <View style={[styles.moduleIcon, { backgroundColor: `${item.accent}1F` }]}>
-              <Ionicons name={item.icon} size={25} color={item.accent} />
+              <Ionicons name={item.icon} size={28} color={item.accent} />
             </View>
             <Text style={styles.moduleTitle}>{item.title}</Text>
           </Pressable>
