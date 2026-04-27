@@ -668,10 +668,8 @@ function assetStats(item: Item) {
   purchase.setHours(0, 0, 0, 0);
   current.setHours(0, 0, 0, 0);
   const daysUsed = Math.max(0, Math.floor((current.getTime() - purchase.getTime()) / 86400000));
-  const dailyDepreciation = Number(item.price || 0) / Math.max(1, Number(item.expected_lifespan_days || 1));
-  const currentValue = Math.max(0, Number(item.price || 0) - dailyDepreciation * daysUsed);
-  const healthRatio = Math.max(0, 1 - daysUsed / Math.max(1, Number(item.expected_lifespan_days || 1)));
-  return { daysUsed, dailyDepreciation, currentValue, healthRatio };
+  const actualDailyCost = Number(item.price || 0) / Math.max(1, daysUsed);
+  return { daysUsed, actualDailyCost };
 }
 
 export function AssetScreen({ onBack }: { onBack: () => void }) {
@@ -683,11 +681,9 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
   const dashboard = processed.reduce((acc, item) => {
     if (['in_use', 'idle'].includes(item.status)) {
       acc.totalOriginal += Number(item.price || 0);
-      acc.totalCurrent += item.currentValue;
-      if (item.currentValue > 0) acc.totalDaily += item.dailyDepreciation;
     }
     return acc;
-  }, { totalOriginal: 0, totalCurrent: 0, totalDaily: 0 });
+  }, { totalOriginal: 0 });
 
   const open = (item?: Item) => {
     if (item) {
@@ -723,32 +719,27 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <PrimaryButton label="录入新资产" icon="add" onPress={() => open()} />
         <View style={styles.statsGrid}>
-          <Stat label="现存资产净值" value={money(dashboard.totalCurrent)} />
-          <Stat label="购入总成本" value={money(dashboard.totalOriginal)} />
-          <Stat label="每日资产折旧" value={money(dashboard.totalDaily)} danger />
+          <Stat label="资产总计" value={money(dashboard.totalOriginal)} />
         </View>
         <StateView loading={loading} error={error} onRetry={load} />
         {processed.map((item) => (
-          <SectionCard key={item.id}>
-            <View style={styles.rowTop}>
-              <View style={styles.flex}>
-                <View style={styles.rowWrap}>
-                  <Text style={styles.itemTitle}>{item.name}</Text>
-                  <Tag label={item.category} />
-                  <Tag label={assetStatus[item.status as keyof typeof assetStatus] || item.status} tone={item.status === 'in_use' ? 'green' : 'orange'} />
+          <Pressable key={item.id} onLongPress={() => open(item)}>
+            <SectionCard>
+              <View style={styles.rowTop}>
+                <View style={styles.flex}>
+                  <View style={styles.rowWrap}>
+                    <Text style={styles.itemTitle}>{item.name}</Text>
+                    <Tag label={item.category} />
+                    <Tag label={assetStatus[item.status as keyof typeof assetStatus] || item.status} tone={item.status === 'in_use' ? 'green' : 'orange'} />
+                  </View>
+                  <MetricLine label="购入价格" value={money(item.price)} />
+                  <MetricLine label="已购入天数" value={`${item.daysUsed} 天`} />
+                  <MetricLine label="每日成本" value={`${money(item.actualDailyCost)}/天`} />
+                  {item.notes ? <Text style={[styles.bodyText, { marginTop: 8 }]} >{item.notes}</Text> : null}
                 </View>
-                <MetricLine label="当前净值" value={money(item.currentValue)} />
-                <MetricLine label="购入价格" value={money(item.price)} />
-                <MetricLine label="每日成本" value={`${money(item.dailyDepreciation)}/天`} />
-                <MetricLine label="寿命消耗" value={`${item.daysUsed} / ${item.expected_lifespan_days} 天`} />
-                <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.min(100, (1 - item.healthRatio) * 100)}%`, backgroundColor: item.healthRatio > 0.3 ? colors.success : item.healthRatio > 0 ? colors.warning : colors.danger }]} /></View>
               </View>
-              <View style={styles.iconColumn}>
-                <IconButton name="create-outline" label="编辑" onPress={() => open(item)} />
-                <DeleteButton onPress={() => confirmRemove(item.name, async () => { await apiRequest(`/guiwu/${item.id}`, { method: 'DELETE' }); await load(); })} />
-              </View>
-            </View>
-          </SectionCard>
+            </SectionCard>
+          </Pressable>
         ))}
       </ScrollView>
       <Modal animationType="slide" visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
@@ -769,7 +760,12 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
               <SegmentedControl value={form.lifespan_type} onChange={(value) => setForm((cur) => ({ ...cur, lifespan_type: value }))} options={[{ label: '年', value: 'years' }, { label: '月', value: 'months' }, { label: '天', value: 'days' }]} />
             </View>
             <Field label="备注" value={form.notes} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
-            <PrimaryButton label={editing ? '保存修改' : '确认录入'} icon="checkmark" disabled={!form.name.trim()} onPress={() => void save()} />
+            <View style={styles.formActions}>
+              {editing && (
+                <PrimaryButton label="删除" tone="plain" onPress={() => confirmRemove(editing.name, async () => { await apiRequest(`/guiwu/${editing.id}`, { method: 'DELETE' }); setModalOpen(false); await load(); })} />
+              )}
+              <PrimaryButton label={editing ? '保存修改' : '确认录入'} icon="checkmark" disabled={!form.name.trim()} onPress={() => void save()} />
+            </View>
           </ScrollView>
         </Screen>
       </Modal>
