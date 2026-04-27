@@ -444,7 +444,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
             displayFinances.map((item) => {
               const isEditing = editingId === item.id;
               return (
-                <View key={item.id} style={styles.billCard}>
+                <Pressable key={item.id} style={styles.billCard} onLongPress={() => startEdit(item)}>
                   <View style={styles.billCardHeader}>
                     <View style={styles.flex}>
                       <View style={styles.billCardTitleRow}>
@@ -454,10 +454,6 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
                       <Text style={styles.billCategory}>{[item.bill, item.category, item.subcategory].filter(Boolean).join(' / ') || '未分类'}</Text>
                       {item.description ? <Text style={styles.billDescription}>{item.description}</Text> : null}
                       {activeTab === 'income' && item.belong_month ? <Text style={styles.billDescription}>归属月份：{item.belong_month}</Text> : null}
-                    </View>
-                    <View style={styles.billActions}>
-                      <IconButton name="create-outline" label="编辑" onPress={() => startEdit(item)} />
-                      <IconButton name="trash-outline" label="删除" color={colors.danger} onPress={() => removeFinance(item)} />
                     </View>
                   </View>
                   {isEditing ? (
@@ -482,12 +478,14 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
                       )}
                       <TextInput value={editDescription} onChangeText={setEditDescription} placeholder="备注说明" placeholderTextColor={colors.faint} style={styles.fullInput} />
                       <View style={styles.editActions}>
+                        <PrimaryButton label="删除" tone="danger" onPress={() => removeFinance(item)} />
+                        <View style={{flex: 1}} />
                         <PrimaryButton label="取消" tone="plain" onPress={() => setEditingId(null)} />
                         <PrimaryButton label="保存修改" icon="checkmark" onPress={() => void updateFinance(item.id)} />
                       </View>
                     </View>
                   ) : null}
-                </View>
+                </Pressable>
               );
             })
           )}
@@ -815,7 +813,7 @@ function FinanceReport({
     const percent = filteredTotalAmount > 0 ? (item.value / filteredTotalAmount) * 100 : 0;
     return {
       name: `${item.name} ${percent.toFixed(1)}%`,
-      population: percent,
+      population: Math.max(0.1, percent),
       color: getTagHexColor(item.name),
       legendFontColor: '#6B7280',
       legendFontSize: 12,

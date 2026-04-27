@@ -16,13 +16,13 @@ import { DateField, Field, Header, IconButton, PrimaryButton, Screen, StateView 
 import { apiRequest } from '@/src/lib/api';
 import { colors, radius, shadow, spacing } from '@/src/theme';
 
-type TodoCategory = 'work' | 'life';
+type TodoCategory = 'work' | 'life' | 'calendar';
 
 type TodoItem = {
   id: number;
   title: string;
   description?: string | null;
-  category: TodoCategory;
+  category: 'work' | 'life';
   is_completed: boolean;
   due_date?: string | null;
   due_time?: string | null;
@@ -40,8 +40,9 @@ type EditForm = {
 };
 
 const categories: { label: string; value: TodoCategory; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { label: '工作清单', value: 'work', icon: 'briefcase-outline', color: colors.primary },
-  { label: '生活清单', value: 'life', icon: 'home-outline', color: colors.success },
+  { label: '工作', value: 'work', icon: 'briefcase-outline', color: colors.primary },
+  { label: '生活', value: 'life', icon: 'home-outline', color: colors.success },
+  { label: '日历', value: 'calendar', icon: 'calendar-outline', color: colors.warning },
 ];
 
 const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];

@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
-  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -14,7 +13,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 
 import { DateField, Field, Header, IconButton, PrimaryButton, Screen, SegmentedControl, StateView } from '@/src/components/ui';
 import { apiRequest, buildAssetUrl, uploadImage } from '@/src/lib/api';
@@ -379,6 +377,7 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
   const [type, setType] = useState('daily');
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>(`/worklogs/?log_type=${type}`);
   const [form, setForm] = useState({ record: '', activity_name: '', event_date: today(), event_time: '', location: '', notes: '' });
+  const [adding, setAdding] = useState(false);
 
   const groups = useMemo(() => groupByDate(items, (item) => item.event_time || item.created_at), [items]);
   const save = async () => {
@@ -395,27 +394,41 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
       },
     });
     setForm({ record: '', activity_name: '', event_date: today(), event_time: '', location: '', notes: '' });
+    setAdding(false);
     await load();
   };
 
   return (
     <ScreenShell title="工作日志" subtitle="日常工作与活动安排" onBack={onBack}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
+        <PrimaryButton label="新建日志" icon="add" onPress={() => setAdding(true)} />
         <SegmentedControl value={type} onChange={setType} options={[{ label: '日常记录', value: 'daily' }, { label: '活动记录', value: 'activity' }]} />
-        <SectionCard>
-          <Field label="活动名" value={form.activity_name} placeholder={type === 'activity' ? '例如：家长会、教研活动' : '例如：备课、批改作业'} onChangeText={(value) => setForm((cur) => ({ ...cur, activity_name: value }))} />
-          <View style={styles.formRow}>
-            <DateField label="日期" value={form.event_date} onChangeText={(value) => setForm((cur) => ({ ...cur, event_date: value }))} />
-            <Field label="时间" value={form.event_time} placeholder="HH:mm" onChangeText={(value) => setForm((cur) => ({ ...cur, event_time: value }))} />
-          </View>
-          <Field label="地点" value={form.location} placeholder="会议室 / 高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, location: value }))} />
-          <Field label="记录" value={form.record} multiline placeholder="记录今天的工作内容..." onChangeText={(value) => setForm((cur) => ({ ...cur, record: value }))} />
-          <Field label="备注" value={form.notes} multiline placeholder="补充说明" onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
-          <PrimaryButton label="保存工作日志" icon="save-outline" disabled={!form.record.trim()} onPress={() => void save()} />
-        </SectionCard>
+        
         <StateView loading={loading} error={error} onRetry={load} />
         <GroupedLogList groups={groups} onDelete={(item) => confirmRemove(item.activity_name || item.record || '工作日志', async () => { await apiRequest(`/worklogs/${item.id}`, { method: 'DELETE' }); await load(); })} />
       </ScrollView>
+
+      <Modal visible={adding} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAdding(false)}>
+        <Screen>
+          <Header title="记录工作日志" action={<IconButton name="close" label="关闭" soft onPress={() => setAdding(false)} />} />
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              <Field label="活动名" value={form.activity_name} placeholder={type === 'activity' ? '例如：家长会、教研活动' : '例如：备课、批改作业'} onChangeText={(value) => setForm((cur) => ({ ...cur, activity_name: value }))} />
+              <View style={styles.formRow}>
+                <DateField label="日期" value={form.event_date} onChangeText={(value) => setForm((cur) => ({ ...cur, event_date: value }))} />
+                <Field label="时间" value={form.event_time} placeholder="HH:mm" onChangeText={(value) => setForm((cur) => ({ ...cur, event_time: value }))} />
+              </View>
+              <Field label="地点" value={form.location} placeholder="会议室 / 高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, location: value }))} />
+              <Field label="记录" value={form.record} multiline placeholder="记录今天的工作内容..." onChangeText={(value) => setForm((cur) => ({ ...cur, record: value }))} />
+              <Field label="备注" value={form.notes} multiline placeholder="补充说明" onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <PrimaryButton label="取消" tone="plain" onPress={() => setAdding(false)} />
+              <PrimaryButton label="保存" icon="save-outline" disabled={!form.record.trim()} onPress={() => void save()} />
+            </View>
+          </KeyboardAvoidingView>
+        </Screen>
+      </Modal>
     </ScreenShell>
   );
 }
@@ -427,6 +440,7 @@ export function TeachingScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/teachings/');
   const [expanded, setExpanded] = useState<number | null>(null);
   const [form, setForm] = useState({ class_name: '', course_type: '科学', content: '', practice_content: '', effect_rating: '3', unexpected: '', reflection: '' });
+  const [adding, setAdding] = useState(false);
   const groups = useMemo(() => groupByDate(items, (item) => item.created_at), [items]);
 
   const save = async () => {
@@ -444,25 +458,14 @@ export function TeachingScreen({ onBack }: { onBack: () => void }) {
       },
     });
     setForm({ class_name: '', course_type: '科学', content: '', practice_content: '', effect_rating: '3', unexpected: '', reflection: '' });
+    setAdding(false);
     await load();
   };
 
   return (
     <ScreenShell title="课堂日志" subtitle="课堂、练习和复盘" onBack={onBack}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <SectionCard>
-          <View style={styles.formRow}>
-            <Field label="授课班级" value={form.class_name} placeholder="例如：高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, class_name: value }))} />
-            <Field label="效果评分" value={form.effect_rating} placeholder="1-5" keyboardType="number-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, effect_rating: value }))} />
-          </View>
-          <Text style={styles.formLabel}>课程类型</Text>
-          <SelectPills value={form.course_type} options={courseTypes} onChange={(value) => setForm((cur) => ({ ...cur, course_type: value }))} accent="#4F46E5" />
-          <Field label="上课内容" value={form.content} multiline placeholder="今天讲了哪些核心知识点？" onChangeText={(value) => setForm((cur) => ({ ...cur, content: value }))} />
-          <Field label="完成练习" value={form.practice_content} multiline placeholder="学生做了哪些练习题？" onChangeText={(value) => setForm((cur) => ({ ...cur, practice_content: value }))} />
-          <Field label="突发意外" value={form.unexpected} multiline placeholder="计划外情况" onChangeText={(value) => setForm((cur) => ({ ...cur, unexpected: value }))} />
-          <Field label="教学反思" value={form.reflection} multiline placeholder="后续要改进什么？" onChangeText={(value) => setForm((cur) => ({ ...cur, reflection: value }))} />
-          <PrimaryButton label="归档教学日志" icon="archive-outline" disabled={!form.class_name.trim() || !form.content.trim()} onPress={() => void save()} />
-        </SectionCard>
+        <PrimaryButton label="新建课堂日志" icon="add" onPress={() => setAdding(true)} />
         <StateView loading={loading} error={error} onRetry={load} />
         {groups.map((group) => (
           <View key={group.date} style={styles.group}>
@@ -499,6 +502,30 @@ export function TeachingScreen({ onBack }: { onBack: () => void }) {
           </View>
         ))}
       </ScrollView>
+
+      <Modal visible={adding} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAdding(false)}>
+        <Screen>
+          <Header title="记录课堂日志" action={<IconButton name="close" label="关闭" soft onPress={() => setAdding(false)} />} />
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              <View style={styles.formRow}>
+                <Field label="授课班级" value={form.class_name} placeholder="例如：高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, class_name: value }))} />
+                <Field label="效果评分" value={form.effect_rating} placeholder="1-5" keyboardType="number-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, effect_rating: value }))} />
+              </View>
+              <Text style={styles.formLabel}>课程类型</Text>
+              <SelectPills value={form.course_type} options={courseTypes} onChange={(value) => setForm((cur) => ({ ...cur, course_type: value }))} accent="#4F46E5" />
+              <Field label="上课内容" value={form.content} multiline placeholder="今天讲了哪些核心知识点？" onChangeText={(value) => setForm((cur) => ({ ...cur, content: value }))} />
+              <Field label="完成练习" value={form.practice_content} multiline placeholder="学生做了哪些练习题？" onChangeText={(value) => setForm((cur) => ({ ...cur, practice_content: value }))} />
+              <Field label="突发意外" value={form.unexpected} multiline placeholder="计划外情况" onChangeText={(value) => setForm((cur) => ({ ...cur, unexpected: value }))} />
+              <Field label="教学反思" value={form.reflection} multiline placeholder="后续要改进什么？" onChangeText={(value) => setForm((cur) => ({ ...cur, reflection: value }))} />
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <PrimaryButton label="取消" tone="plain" onPress={() => setAdding(false)} />
+              <PrimaryButton label="保存" icon="save-outline" disabled={!form.class_name.trim() || !form.content.trim()} onPress={() => void save()} />
+            </View>
+          </KeyboardAvoidingView>
+        </Screen>
+      </Modal>
     </ScreenShell>
   );
 }
@@ -1052,178 +1079,6 @@ function ReadingModal({ visible, onClose, editing, form, setForm, save }: any) {
   );
 }
 
-export function PortfolioScreen({ onBack }: { onBack: () => void }) {
-  const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/extras/portfolios/');
-  const [form, setForm] = useState({ title: '', description: '', link: '', completion_date: today() });
-  const add = async () => {
-    if (!form.title.trim()) return;
-    await apiRequest('/extras/portfolios/', { method: 'POST', body: { title: form.title.trim(), description: form.description.trim() || null, link: form.link.trim() || null, completion_date: form.completion_date || null } });
-    setForm({ title: '', description: '', link: '', completion_date: today() });
-    await load();
-  };
-  return (
-    <ScreenShell title="作品" subtitle="记录每一个闪闪发光的里程碑" onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <SectionCard>
-          <Field label="作品名称" value={form.title} onChangeText={(value) => setForm((cur) => ({ ...cur, title: value }))} />
-          <Field label="作品链接" value={form.link} placeholder="https://..." onChangeText={(value) => setForm((cur) => ({ ...cur, link: value }))} />
-          <DateField label="完成日期" value={form.completion_date} onChangeText={(value) => setForm((cur) => ({ ...cur, completion_date: value }))} />
-          <Field label="描述" value={form.description} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, description: value }))} />
-          <PrimaryButton label="添加作品" icon="add" disabled={!form.title.trim()} onPress={() => void add()} />
-        </SectionCard>
-        <StateView loading={loading} error={error} onRetry={load} />
-        <View style={styles.grid}>
-          {items.map((item) => (
-            <SectionCard key={item.id} style={styles.gridCard}>
-              <Text style={styles.trophy}>🏆</Text>
-              <Text style={styles.itemTitle}>{item.title}</Text>
-              <Tag label={item.completion_date || '未知时间'} tone="orange" />
-              <Text style={styles.bodyText}>{item.description || '没有描述...'}</Text>
-              {item.link ? <PrimaryButton label="查看作品" tone="plain" icon="open-outline" onPress={() => void Linking.openURL(item.link)} /> : <Text style={styles.emptyText}>无链接</Text>}
-              <PrimaryButton label="删除" tone="danger" onPress={() => confirmRemove(item.title, async () => { await apiRequest(`/extras/portfolios/${item.id}`, { method: 'DELETE' }); await load(); })} />
-            </SectionCard>
-          ))}
-        </View>
-      </ScrollView>
-    </ScreenShell>
-  );
-}
-
-export function GrowthRadarScreen({ onBack }: { onBack: () => void }) {
-  const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/extras/growth/');
-  const [category, setCategory] = useState('');
-  const sorted = [...items].sort((a, b) => a.id - b.id);
-  const add = async () => {
-    if (!category.trim()) return;
-    await apiRequest('/extras/growth/', { method: 'POST', body: { category: category.trim(), score: 0 } });
-    setCategory('');
-    await load();
-  };
-  const updateScore = async (item: Item, delta: number) => {
-    await apiRequest('/extras/growth/', { method: 'POST', body: { category: item.category, score: Math.max(0, Number(item.score || 0) + delta) } });
-    await load();
-  };
-  return (
-    <ScreenShell title="成长雷达" subtitle="技能加点和能力雷达图" onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <SectionCard>
-          <Text style={styles.sectionTitle}>能力雷达图</Text>
-          <RadarChartView items={sorted} />
-          <Field label="添加新技能" value={category} placeholder="如：前端开发、沟通表达" onChangeText={setCategory} />
-          <PrimaryButton label="添加技能" icon="add" disabled={!category.trim()} onPress={() => void add()} />
-        </SectionCard>
-        <StateView loading={loading} error={error} onRetry={load} />
-        {sorted.map((item) => {
-          const level = Math.floor(Number(item.score || 0) / 100) + 1;
-          return (
-            <SectionCard key={item.id}>
-              <View style={styles.rowTop}>
-                <View style={styles.flex}>
-                  <View style={styles.rowWrap}>
-                    <Text style={styles.itemTitle}>{item.category}</Text>
-                    <Tag label={`LV.${level}`} tone={level > 3 ? 'orange' : 'blue'} />
-                  </View>
-                  <Text style={styles.metaText}>经验值：{item.score}</Text>
-                  <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.max(2, Number(item.score || 0) % 100)}%`, backgroundColor: '#6366F1' }]} /></View>
-                </View>
-                <View style={styles.iconColumn}>
-                  <IconButton name="add" label="经验+5" onPress={() => void updateScore(item, 5)} />
-                  <DeleteButton onPress={() => confirmRemove(item.category, async () => { await apiRequest(`/extras/growth/${item.id}`, { method: 'DELETE' }); await load(); })} />
-                </View>
-              </View>
-            </SectionCard>
-          );
-        })}
-      </ScrollView>
-    </ScreenShell>
-  );
-}
-
-function RadarChartView({ items }: { items: Item[] }) {
-  const topItems = [...items].sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 8);
-  if (topItems.length < 3) return <Text style={styles.emptyText}>至少需要 3 项技能才能生成雷达图</Text>;
-  const size = 280;
-  const center = size / 2;
-  const radiusValue = 96;
-  const max = Math.max(100, ...topItems.map((item) => Number(item.score || 0)));
-  const points = topItems.map((item, index) => {
-    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / topItems.length;
-    const valueRadius = (Number(item.score || 0) / max) * radiusValue;
-    return { x: center + Math.cos(angle) * valueRadius, y: center + Math.sin(angle) * valueRadius, labelX: center + Math.cos(angle) * (radiusValue + 22), labelY: center + Math.sin(angle) * (radiusValue + 22), label: item.category };
-  });
-  return (
-    <View style={styles.radarWrap}>
-      <Svg width={size} height={size}>
-        {[0.25, 0.5, 0.75, 1].map((ratio) => (
-          <Circle key={ratio} cx={center} cy={center} r={radiusValue * ratio} fill="none" stroke="#E5E7EB" />
-        ))}
-        {topItems.map((_, index) => {
-          const angle = -Math.PI / 2 + (index * 2 * Math.PI) / topItems.length;
-          return <Line key={index} x1={center} y1={center} x2={center + Math.cos(angle) * radiusValue} y2={center + Math.sin(angle) * radiusValue} stroke="#E5E7EB" />;
-        })}
-        <Polygon points={points.map((point) => `${point.x},${point.y}`).join(' ')} fill="#818CF8" fillOpacity={0.45} stroke="#6366F1" strokeWidth={2} />
-        {points.map((point, index) => <SvgText key={index} x={point.labelX} y={point.labelY} fontSize="11" fill="#374151" textAnchor="middle">{point.label.slice(0, 5)}</SvgText>)}
-      </Svg>
-    </View>
-  );
-}
-
-export function GoalScreen({ onBack }: { onBack: () => void }) {
-  const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/extras/goals/');
-  const [form, setForm] = useState({ title: '', description: '', target_date: '' });
-  const add = async () => {
-    if (!form.title.trim()) return;
-    await apiRequest('/extras/goals/', { method: 'POST', body: { title: form.title.trim(), description: form.description.trim() || null, target_date: form.target_date || null, progress: 0, status: 'in_progress' } });
-    setForm({ title: '', description: '', target_date: '' });
-    await load();
-  };
-  const updateProgress = async (goal: Item, next: number) => {
-    const progress = Math.max(0, Math.min(100, next));
-    await apiRequest(`/extras/goals/${goal.id}`, { method: 'PUT', body: { progress, status: progress === 100 ? 'completed' : 'in_progress' } });
-    await load();
-  };
-  return (
-    <ScreenShell title="目标" subtitle="设定目标，拆解进度" onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <SectionCard>
-          <Field label="目标名称" value={form.title} placeholder="例如：今年读完50本书" onChangeText={(value) => setForm((cur) => ({ ...cur, title: value }))} />
-          <DateField label="目标日期" value={form.target_date} onChangeText={(value) => setForm((cur) => ({ ...cur, target_date: value }))} optional />
-          <Field label="具体描述" value={form.description} multiline placeholder="写下拆解计划..." onChangeText={(value) => setForm((cur) => ({ ...cur, description: value }))} />
-          <PrimaryButton label="立下 Flag" icon="flag-outline" disabled={!form.title.trim()} onPress={() => void add()} />
-        </SectionCard>
-        <StateView loading={loading} error={error} onRetry={load} />
-        {items.map((goal) => {
-          const completed = goal.status === 'completed';
-          return (
-            <SectionCard key={goal.id} style={completed && styles.completedCard}>
-              <View style={styles.rowTop}>
-                <View style={styles.flex}>
-                  <View style={styles.rowWrap}>
-                    <Text style={[styles.itemTitle, completed && styles.completedText]}>{goal.title}</Text>
-                    {completed ? <Tag label="已达成" tone="green" /> : goal.target_date ? <Tag label={goal.target_date} tone="orange" /> : null}
-                  </View>
-                  {goal.description ? <Text style={styles.bodyText}>{goal.description}</Text> : null}
-                  <MetricLine label="当前进度" value={`${goal.progress}%`} />
-                  <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${goal.progress}%`, backgroundColor: completed ? colors.success : colors.primary }]} /></View>
-                  <View style={styles.rowWrap}>
-                    {!completed ? (
-                      <>
-                        <PrimaryButton label="-10" tone="plain" onPress={() => void updateProgress(goal, Number(goal.progress) - 10)} />
-                        <PrimaryButton label="+10" tone="plain" onPress={() => void updateProgress(goal, Number(goal.progress) + 10)} />
-                      </>
-                    ) : <PrimaryButton label="撤销完成" tone="plain" onPress={() => void updateProgress(goal, 90)} />}
-                  </View>
-                </View>
-                <DeleteButton onPress={() => confirmRemove(goal.title, async () => { await apiRequest(`/extras/goals/${goal.id}`, { method: 'DELETE' }); await load(); })} />
-              </View>
-            </SectionCard>
-          );
-        })}
-      </ScrollView>
-    </ScreenShell>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { gap: spacing.md, padding: spacing.lg, paddingBottom: spacing.xxl },
@@ -1300,8 +1155,4 @@ const styles = StyleSheet.create({
   previewImage: { backgroundColor: colors.border, borderRadius: radius.lg, height: 220, width: '100%' },
   fullImageBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.9)', flex: 1, justifyContent: 'center', padding: spacing.lg },
   fullImage: { height: '90%', width: '100%' },
-  grid: { gap: spacing.md },
-  gridCard: { minHeight: 240 },
-  trophy: { fontSize: 42, textAlign: 'center' },
-  radarWrap: { alignItems: 'center' },
 });
