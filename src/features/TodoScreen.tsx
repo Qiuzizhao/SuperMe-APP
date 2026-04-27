@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   Alert,
   Platform,
@@ -11,6 +11,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 
 import { DateField, Field, Header, IconButton, PrimaryButton, Screen, StateView } from '@/src/components/ui';
 import { apiRequest } from '@/src/lib/api';
@@ -129,6 +131,7 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
 
   const loadTodos = useCallback(async () => {
     setError(null);
@@ -272,6 +275,7 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadTodos(); }} />}>
         <View style={styles.categoryTabs}>
           {categories.map((category) => {
@@ -299,12 +303,12 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
               placeholder={`添加一个新的${activeCategory === 'life' ? '生活' : '工作'}待办...`}
               placeholderTextColor={colors.faint}
               returnKeyType="done"
-              onSubmitEditing={addTodo}
+              onSubmitEditing={() => bottomSheetRef.current?.present()}
               style={styles.quickInput}
             />
             <Pressable
               accessibilityRole="button"
-              onPress={addTodo}
+              onPress={() => bottomSheetRef.current?.present()}
               disabled={saving || !newTitle.trim()}
               style={[styles.addButton, { backgroundColor: activeColor }, (saving || !newTitle.trim()) && styles.disabled]}>
               <Ionicons name="add" size={22} color="#fff" />
@@ -409,6 +413,57 @@ export function TodoScreen({ onBack }: { onBack: () => void }) {
           </View>
         ) : null}
       </ScrollView>
+      <Pressable style={styles.fab} onPress={() => {
+        setNewTitle('');
+        bottomSheetRef.current?.present();
+      }}>
+        <LinearGradient
+          colors={[activeColor, `${activeColor}dd`]}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['85%']}
+        index={0}
+        backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetIndicator}
+      >
+        <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sheetTitle}>新增{activeCategory === 'work' ? '工作' : '生活'}待办</Text>
+          <View style={{ height: spacing.lg }} />
+          <Field label="标题" value={newTitle} onChangeText={setNewTitle} placeholder="准备做什么..." />
+          <View style={styles.formRow}>
+            <View style={styles.formColumn}>
+              <DateField label="日期" value={selectedDate || ''} onChangeText={setSelectedDate} optional />
+            </View>
+            <View style={styles.formColumn}>
+              <Field label="时间" value={editForm.due_time} placeholder="例如：下午2点" onChangeText={(value) => setEditForm((current) => ({ ...current, due_time: value }))} />
+            </View>
+          </View>
+          <Field label="地点" value={editForm.location} placeholder="例如：办公室" onChangeText={(value) => setEditForm((current) => ({ ...current, location: value }))} />
+          <Field
+            label="备注说明"
+            value={editForm.description}
+            placeholder="添加更多详细说明..."
+            multiline
+            onChangeText={(value) => setEditForm((current) => ({ ...current, description: value }))}
+          />
+          <View style={styles.formActions}>
+            <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+            <View style={{ flex: 1 }}>
+              <PrimaryButton label={saving ? '保存中' : '添加'} icon="checkmark" disabled={saving || !newTitle.trim()} onPress={async () => {
+                await addTodo();
+                bottomSheetRef.current?.dismiss();
+              }} />
+            </View>
+          </View>
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </Screen>
   );
 }
@@ -669,6 +724,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     justifyContent: 'flex-end',
+    marginTop: spacing.xl,
+    paddingBottom: spacing.md,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 32,
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    ...shadow,
+    elevation: 8,
+    zIndex: 100,
+  },
+  fabGradient: {
+    flex: 1,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bottomSheetBg: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+  },
+  bottomSheetIndicator: {
+    backgroundColor: colors.border,
+    width: 48,
+    height: 6,
+    borderRadius: 3,
+  },
+  sheetTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.text,
+  },
+  modalContent: {
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   calendarCard: {
     backgroundColor: colors.surface,

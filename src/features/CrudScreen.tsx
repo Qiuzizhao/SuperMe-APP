@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   Alert,
   FlatList,
@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 
 import { Card, DateField, Field, Header, IconButton, PrimaryButton, Screen, SegmentedControl, StateView } from '@/src/components/ui';
 import { apiRequest, buildAssetUrl, uploadImage } from '@/src/lib/api';
@@ -226,7 +227,7 @@ function CrudModule({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [editing, setEditing] = useState<RecordItem | null>(null);
   const [form, setForm] = useState<FormState>(() => initialForm(config));
   const [saving, setSaving] = useState(false);
@@ -253,7 +254,7 @@ function CrudModule({
   const openCreate = () => {
     setEditing(null);
     setForm(initialForm(config));
-    setModalOpen(true);
+    bottomSheetRef.current?.present();
   };
 
   const openEdit = (item: RecordItem) => {
@@ -263,7 +264,7 @@ function CrudModule({
     }
     setEditing(item);
     setForm(initialForm(config, item));
-    setModalOpen(true);
+    bottomSheetRef.current?.present();
   };
 
   const save = async () => {
@@ -282,7 +283,7 @@ function CrudModule({
       } else {
         await apiRequest(config.endpoint, { method: 'POST', body: payload });
       }
-      setModalOpen(false);
+      bottomSheetRef.current?.dismiss();
       await load();
     } catch (err) {
       Alert.alert('保存失败', err instanceof Error ? err.message : '请稍后重试');
@@ -325,9 +326,6 @@ function CrudModule({
         subtitle={`${items.length} 条记录 · ${config.subtitle}`}
         action={<IconButton name="chevron-back" label="返回模块列表" soft onPress={onBack} />}
       />
-      <View style={styles.toolbar}>
-        <PrimaryButton label="新增记录" icon="add" onPress={openCreate} />
-      </View>
       {!loading && !error && items.length > 0 ? (
         <View style={styles.searchBox}>
           <Field label="搜索" value={query} placeholder={`搜索${config.title}`} onChangeText={setQuery} />
@@ -377,14 +375,24 @@ function CrudModule({
           }}
         />
       ) : null}
+
+      <Pressable style={styles.fab} onPress={openCreate}>
+        <LinearGradient
+          colors={[`${config.accent}`, `${config.accent}dd`]}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
       <EditModal
         config={config}
-        visible={modalOpen}
+        bottomSheetRef={bottomSheetRef}
         editing={editing}
         form={form}
         saving={saving}
         onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))}
-        onClose={() => setModalOpen(false)}
+        onClose={() => bottomSheetRef.current?.dismiss()}
         onSave={save}
       />
     </Screen>
@@ -393,7 +401,7 @@ function CrudModule({
 
 function EditModal({
   config,
-  visible,
+  bottomSheetRef,
   editing,
   form,
   saving,
@@ -402,7 +410,7 @@ function EditModal({
   onSave,
 }: {
   config: ModuleConfig;
-  visible: boolean;
+  bottomSheetRef: React.RefObject<BottomSheetModal>;
   editing: RecordItem | null;
   form: FormState;
   saving: boolean;
@@ -428,16 +436,19 @@ function EditModal({
   };
 
   return (
-    <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={['85%']}
+      index={0}
+      backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+      backgroundStyle={styles.bottomSheetBg}
+      handleIndicatorStyle={styles.bottomSheetIndicator}
+    >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modal}>
-        <View style={styles.modalHeader}>
-          <View>
-            <Text style={styles.modalTitle}>{editing ? '编辑记录' : '新增记录'}</Text>
-            <Text style={styles.modalSubtitle}>{config.title}</Text>
-          </View>
-          <IconButton name="close" label="关闭" soft onPress={onClose} />
-        </View>
-        <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+        <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sheetTitle}>{editing ? '编辑记录' : '新增记录'}</Text>
+          <Text style={styles.modalSubtitle}>{config.title}</Text>
+          <View style={{ height: spacing.lg }} />
           {config.fields.map((field) => {
             if (field.type === 'select' || field.type === 'boolean') {
               const options = field.options || [];
@@ -483,13 +494,15 @@ function EditModal({
               />
             );
           })}
-        </ScrollView>
+        </BottomSheetScrollView>
         <View style={styles.modalFooter}>
           <PrimaryButton label="取消" tone="plain" onPress={onClose} />
-          <PrimaryButton label={saving ? '保存中' : '保存'} icon="checkmark" disabled={saving} onPress={onSave} />
+          <View style={{ flex: 1 }}>
+            <PrimaryButton label={saving ? '保存中' : '保存'} icon="checkmark" disabled={saving} onPress={onSave} />
+          </View>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </BottomSheetModal>
   );
 }
 
@@ -666,6 +679,38 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.xl,
     paddingBottom: Platform.OS === 'ios' ? 34 : spacing.xl,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 32,
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    ...shadow,
+    elevation: 8,
+    zIndex: 100,
+  },
+  fabGradient: {
+    flex: 1,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bottomSheetBg: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+  },
+  bottomSheetIndicator: {
+    backgroundColor: colors.border,
+    width: 48,
+    height: 6,
+    borderRadius: 3,
+  },
+  sheetTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.text,
   },
   formBlock: {
     marginBottom: spacing.md,

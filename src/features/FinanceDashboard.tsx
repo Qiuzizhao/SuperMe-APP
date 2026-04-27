@@ -576,7 +576,12 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
             </>
           )}
           <TextInput value={description} onChangeText={setDescription} placeholder="备注说明" placeholderTextColor={colors.faint} style={styles.fullInput} />
-          <PrimaryButton label="添加账单" icon="checkmark" disabled={!amount.trim()} onPress={() => void addFinance()} />
+          <View style={styles.formActions}>
+            <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+            <View style={{ flex: 1 }}>
+              <PrimaryButton label="添加账单" icon="checkmark" disabled={!amount.trim()} onPress={() => void addFinance()} />
+            </View>
+          </View>
         </BottomSheetScrollView>
       </BottomSheetModal>
     </Screen>
@@ -1828,6 +1833,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     ...shadow,
     elevation: 8,
+    zIndex: 100,
   },
   fabGradient: {
     flex: 1,
@@ -1836,18 +1842,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bottomSheetBg: {
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: 24,
   },
   bottomSheetIndicator: {
     backgroundColor: colors.border,
     width: 48,
+    height: 6,
+    borderRadius: 3,
   },
   sheetTitle: {
     fontSize: 22,
     fontWeight: '900',
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  formActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'flex-end',
+    marginTop: spacing.xl,
+    paddingBottom: spacing.md,
   },
   billSummaryRow: {
     flexDirection: 'row',

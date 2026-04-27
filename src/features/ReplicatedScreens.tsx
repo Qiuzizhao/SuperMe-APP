@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   Alert,
   Image,
@@ -18,6 +18,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 
 import { DateField, Field, Header, IconButton, PrimaryButton, Screen, SegmentedControl, StateView } from '@/src/components/ui';
 import { apiRequest, buildAssetUrl, uploadImage } from '@/src/lib/api';
@@ -144,7 +146,7 @@ function moodByLevel(level: number) {
 
 export function MoodScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/moods/');
-  const [modalOpen, setModalOpen] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [level, setLevel] = useState(3);
   const [emotion, setEmotion] = useState('');
   const [content, setContent] = useState('');
@@ -171,7 +173,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
       method: 'POST',
       body: { mood_level: level, mood_label: mood.label, content: content.trim() || null, emotion: emotion.trim() || null },
     });
-    setModalOpen(false);
+    bottomSheetRef.current?.dismiss();
     setLevel(3);
     setEmotion('');
     setContent('');
@@ -187,8 +189,8 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
     <ScreenShell title="心情" subtitle={`${items.length} 条情绪记录 · 心情五线谱`} onBack={onBack}>
       <ScrollView
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="记录此刻" icon="add" onPress={() => setModalOpen(true)} />
         <MoodStaff moods={items} moodAssetsReady={moodAssetsReady} />
         <StateView loading={loading} error={error} onRetry={load} />
         <View style={styles.timeline}>
@@ -213,24 +215,45 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
           })}
         </View>
       </ScrollView>
-      <Modal animationType="slide" visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
-        <Screen>
-          <Header title="记录此刻心情" action={<IconButton name="close" label="关闭" soft onPress={() => setModalOpen(false)} />} />
-          <ScrollView contentContainerStyle={styles.content}>
-            <View style={styles.moodPicker}>
-              {moodOptions.map((mood) => (
-                <Pressable key={mood.level} onPress={() => setLevel(mood.level)} style={[styles.moodButton, level === mood.level && styles.moodButtonSelected]}>
-                  {moodAssetsReady ? <ExpoImage source={mood.emoji} style={styles.bigEmojiImage} contentFit="contain" transition={0} cachePolicy="memory-disk" /> : null}
-                  <Text style={styles.moodLabel}>{mood.label}</Text>
-                </Pressable>
-              ))}
+
+      <Pressable style={styles.fab} onPress={() => bottomSheetRef.current?.present()}>
+        <LinearGradient
+          colors={['#A855F7', '#7E22CE']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['85%']}
+        index={0}
+        backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetIndicator}
+      >
+        <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sheetTitle}>记录此刻心情</Text>
+          <View style={{ height: spacing.lg }} />
+          <View style={styles.moodPicker}>
+            {moodOptions.map((mood) => (
+              <Pressable key={mood.level} onPress={() => setLevel(mood.level)} style={[styles.moodButton, level === mood.level && styles.moodButtonSelected]}>
+                {moodAssetsReady ? <ExpoImage source={mood.emoji} style={styles.bigEmojiImage} contentFit="contain" transition={0} cachePolicy="memory-disk" /> : null}
+                <Text style={styles.moodLabel}>{mood.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Field label="具体情绪" value={emotion} placeholder="例如：很爽、悲伤、兴奋" onChangeText={setEmotion} />
+          <Field label="发生了什么事？" value={content} placeholder="记录影响心情的原因..." multiline onChangeText={setContent} />
+          <View style={styles.formActions}>
+            <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+            <View style={{ flex: 1 }}>
+              <PrimaryButton label="打卡" icon="checkmark" onPress={() => void addMood()} />
             </View>
-            <Field label="具体情绪" value={emotion} placeholder="例如：很爽、悲伤、兴奋" onChangeText={setEmotion} />
-            <Field label="发生了什么事？" value={content} placeholder="记录影响心情的原因..." multiline onChangeText={setContent} />
-            <PrimaryButton label="打卡" icon="checkmark" onPress={() => void addMood()} />
-          </ScrollView>
-        </Screen>
-      </Modal>
+          </View>
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </ScreenShell>
   );
 }
@@ -269,6 +292,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/notes/');
   const [selected, setSelected] = useState<Item | null>(null);
   const [thread, setThread] = useState<Item[]>([]);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [modalKind, setModalKind] = useState<'root' | 'thread' | 'edit' | null>(null);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [moodAssetsReady, setMoodAssetsReady] = useState(false);
@@ -301,6 +325,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
   const handleLongPress = (item: Item) => {
     setEditingItem(item);
     setModalKind('edit');
+    bottomSheetRef.current?.present();
   };
 
   const addOrUpdateNote = async (payload: Record<string, unknown>) => {
@@ -311,6 +336,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
     }
     setModalKind(null);
     setEditingItem(null);
+    bottomSheetRef.current?.dismiss();
     await load();
     if (selected) await loadThread(selected.id);
   };
@@ -323,6 +349,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
     }
     setModalKind(null);
     setEditingItem(null);
+    bottomSheetRef.current?.dismiss();
     await load();
   });
 
@@ -330,8 +357,8 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
     <ScreenShell title="随手记" subtitle={`${items.length} 条 · 事件追踪`} onBack={onBack}>
       <ScrollView
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="记录新想法" icon="add" onPress={() => setModalKind('root')} />
         <StateView loading={loading} error={error} onRetry={load} />
         <View style={styles.splitStack}>
           <View style={styles.timeline}>
@@ -354,7 +381,10 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
           <SectionCard>
             <View style={styles.rowTop}>
               <Text style={styles.sectionTitle}>事件追踪</Text>
-              {selected ? <PrimaryButton label="添加进展" icon="add" onPress={() => setModalKind('thread')} /> : null}
+              {selected ? <PrimaryButton label="添加进展" icon="add" onPress={() => {
+                setModalKind('thread');
+                bottomSheetRef.current?.present();
+              }} /> : null}
             </View>
             {selected ? (
               <View style={styles.timeline}>
@@ -375,10 +405,23 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
           </SectionCard>
         </View>
       </ScrollView>
+      <Pressable style={styles.fab} onPress={() => {
+        setModalKind('root');
+        bottomSheetRef.current?.present();
+      }}>
+        <LinearGradient
+          colors={['#3B82F6', '#2563EB']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
       <NoteModal
+        bottomSheetRef={bottomSheetRef}
         visible={modalKind !== null}
         title={modalKind === 'edit' ? '编辑随记' : modalKind === 'thread' ? '添加事件新进展' : '记录新想法'}
-        onClose={() => { setModalKind(null); setEditingItem(null); }}
+        onClose={() => { setModalKind(null); setEditingItem(null); bottomSheetRef.current?.dismiss(); }}
         initialData={editingItem}
         moodAssetsReady={moodAssetsReady}
         onDelete={editingItem ? () => remove(editingItem) : undefined}
@@ -393,7 +436,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function NoteModal({ visible, title, onClose, onSubmit, initialData, moodAssetsReady, onDelete }: { visible: boolean; title: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => void; initialData?: Item | null; moodAssetsReady?: boolean; onDelete?: () => void }) {
+function NoteModal({ bottomSheetRef, visible, title, onClose, onSubmit, initialData, moodAssetsReady, onDelete }: { bottomSheetRef: React.RefObject<BottomSheetModal>; visible: boolean; title: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => void; initialData?: Item | null; moodAssetsReady?: boolean; onDelete?: () => void }) {
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [mood, setMood] = useState<typeof moodOptions[number] | null>(null);
@@ -424,10 +467,18 @@ function NoteModal({ visible, title, onClose, onSubmit, initialData, moodAssetsR
   };
 
   return (
-    <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
-      <Screen>
-        <Header title={title} action={<IconButton name="close" label="关闭" soft onPress={onClose} />} />
-        <ScrollView contentContainerStyle={styles.content}>
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={['85%']}
+      index={0}
+      backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+      backgroundStyle={styles.bottomSheetBg}
+      handleIndicatorStyle={styles.bottomSheetIndicator}
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sheetTitle}>{title}</Text>
+          <View style={{ height: spacing.lg }} />
           <TextArea value={content} placeholder="此刻在想些什么？" onChangeText={setContent} />
           <Text style={styles.formLabel}>标签</Text>
           <View style={styles.pills}>
@@ -451,13 +502,16 @@ function NoteModal({ visible, title, onClose, onSubmit, initialData, moodAssetsR
           <Field label="具体情绪" value={emotion} placeholder="如：很不爽" onChangeText={setEmotion} />
           <View style={styles.formActions}>
             {initialData && onDelete && (
-              <PrimaryButton label="删除" tone="plain" onPress={onDelete} />
+              <PrimaryButton label="删除" tone="danger" onPress={onDelete} />
             )}
-            <PrimaryButton label={initialData ? "保存修改" : "发布"} icon="send" disabled={!content.trim()} onPress={submit} />
+            <PrimaryButton label="取消" tone="plain" onPress={onClose} />
+            <View style={{ flex: 1 }}>
+              <PrimaryButton label={initialData ? "保存修改" : "发布"} icon="send" disabled={!content.trim()} onPress={submit} />
+            </View>
           </View>
-        </ScrollView>
-      </Screen>
-    </Modal>
+        </BottomSheetScrollView>
+      </KeyboardAvoidingView>
+    </BottomSheetModal>
   );
 }
 
@@ -478,7 +532,7 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
   const [type, setType] = useState('daily');
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>(`/worklogs/?log_type=${type}`);
   const [form, setForm] = useState(createWorkLogForm);
-  const [adding, setAdding] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
 
   const groups = useMemo(() => groupByDate(items, (item) => item.event_time || item.created_at), [items]);
@@ -499,7 +553,7 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
       },
     });
     setForm(createWorkLogForm());
-    setAdding(false);
+    bottomSheetRef.current?.dismiss();
     setEditingItem(null);
     await load();
   };
@@ -507,17 +561,17 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
   const openCreate = () => {
     setEditingItem(null);
     setForm(createWorkLogForm());
-    setAdding(true);
+    bottomSheetRef.current?.present();
   };
 
   const openEdit = (item: Item) => {
     setEditingItem(item);
     setForm(getWorkLogFormFromItem(item));
-    setAdding(true);
+    bottomSheetRef.current?.present();
   };
 
   const closeModal = () => {
-    setAdding(false);
+    bottomSheetRef.current?.dismiss();
     setEditingItem(null);
     setForm(createWorkLogForm());
   };
@@ -533,36 +587,52 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <ScreenShell title="工作日志" subtitle="日常工作与活动安排" onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="新建日志" icon="add" onPress={openCreate} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <SegmentedControl value={type} onChange={setType} options={[{ label: '日常记录', value: 'daily' }, { label: '活动记录', value: 'activity' }]} />
         
         <StateView loading={loading} error={error} onRetry={load} />
         <GroupedLogList groups={groups} onLongPress={openEdit} />
       </ScrollView>
 
-      <Modal visible={adding} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeModal}>
-        <Screen>
-          <Header title={editingItem ? "编辑工作日志" : "记录工作日志"} action={<IconButton name="close" label="关闭" soft onPress={closeModal} />} />
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={styles.modalScroll}>
-              <Field label="活动名" value={form.activity_name} placeholder={type === 'activity' ? '例如：家长会、教研活动' : '例如：备课、批改作业'} onChangeText={(value) => setForm((cur) => ({ ...cur, activity_name: value }))} />
-              <View style={styles.formRow}>
-                <DateField label="日期" value={form.event_date} onChangeText={(value) => setForm((cur) => ({ ...cur, event_date: value }))} />
-                <Field label="时间" value={form.event_time} placeholder="HH:mm" onChangeText={(value) => setForm((cur) => ({ ...cur, event_time: value }))} />
-              </View>
-              <Field label="地点" value={form.location} placeholder="会议室 / 高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, location: value }))} />
-              <Field label="记录" value={form.record} multiline placeholder="记录今天的工作内容..." onChangeText={(value) => setForm((cur) => ({ ...cur, record: value }))} />
-              <Field label="备注" value={form.notes} multiline placeholder="补充说明" onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
-            </ScrollView>
-            <View style={styles.modalFooter}>
+      <Pressable style={styles.fab} onPress={openCreate}>
+        <LinearGradient
+          colors={['#0EA5E9', '#1D4ED8']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['85%']}
+        index={0}
+        backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetIndicator}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.sheetTitle}>{editingItem ? "编辑工作日志" : "记录工作日志"}</Text>
+            <View style={{ height: spacing.lg }} />
+            <Field label="活动名" value={form.activity_name} placeholder={type === 'activity' ? '例如：家长会、教研活动' : '例如：备课、批改作业'} onChangeText={(value) => setForm((cur) => ({ ...cur, activity_name: value }))} />
+            <View style={styles.formRow}>
+              <DateField label="日期" value={form.event_date} onChangeText={(value) => setForm((cur) => ({ ...cur, event_date: value }))} />
+              <Field label="时间" value={form.event_time} placeholder="HH:mm" onChangeText={(value) => setForm((cur) => ({ ...cur, event_time: value }))} />
+            </View>
+            <Field label="地点" value={form.location} placeholder="会议室 / 高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, location: value }))} />
+            <Field label="记录" value={form.record} multiline placeholder="记录今天的工作内容..." onChangeText={(value) => setForm((cur) => ({ ...cur, record: value }))} />
+            <Field label="备注" value={form.notes} multiline placeholder="补充说明" onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
+            <View style={styles.formActions}>
               {editingItem ? <PrimaryButton label="删除" tone="danger" onPress={() => void remove()} /> : null}
               <PrimaryButton label="取消" tone="plain" onPress={closeModal} />
-              <PrimaryButton label={editingItem ? "保存修改" : "保存"} icon="save-outline" disabled={!form.record.trim()} onPress={() => void save()} />
+              <View style={{ flex: 1 }}>
+                <PrimaryButton label={editingItem ? "保存修改" : "保存"} icon="save-outline" disabled={!form.record.trim()} onPress={() => void save()} />
+              </View>
             </View>
-          </KeyboardAvoidingView>
-        </Screen>
-      </Modal>
+          </BottomSheetScrollView>
+        </KeyboardAvoidingView>
+      </BottomSheetModal>
     </ScreenShell>
   );
 }
@@ -581,7 +651,7 @@ export function TeachingScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/teachings/');
   const [expanded, setExpanded] = useState<number | null>(null);
   const [form, setForm] = useState({ class_name: '', course_type: '科学', content: '', practice_content: '', effect_rating: '3', unexpected: '', reflection: '' });
-  const [adding, setAdding] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const groups = useMemo(() => groupByDate(items, (item) => item.created_at), [items]);
 
   const save = async () => {
@@ -599,14 +669,13 @@ export function TeachingScreen({ onBack }: { onBack: () => void }) {
       },
     });
     setForm({ class_name: '', course_type: '科学', content: '', practice_content: '', effect_rating: '3', unexpected: '', reflection: '' });
-    setAdding(false);
+    bottomSheetRef.current?.dismiss();
     await load();
   };
 
   return (
     <ScreenShell title="课堂日志" subtitle="课堂、练习和复盘" onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="新建课堂日志" icon="add" onPress={() => setAdding(true)} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <StateView loading={loading} error={error} onRetry={load} />
         {groups.map((group) => (
           <View key={group.date} style={styles.group}>
@@ -644,40 +713,57 @@ export function TeachingScreen({ onBack }: { onBack: () => void }) {
         ))}
       </ScrollView>
 
-      <Modal visible={adding} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAdding(false)}>
-        <Screen>
-          <Header title="记录课堂日志" action={<IconButton name="close" label="关闭" soft onPress={() => setAdding(false)} />} />
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={styles.modalScroll}>
-              <Field label="授课班级" value={form.class_name} placeholder="例如：高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, class_name: value }))} />
-              <Text style={styles.formLabel}>效果评分</Text>
-              <View style={styles.pills}>
-                {effectRatingOptions.map((option) => {
-                  const selected = form.effect_rating === option.value;
-                  return (
-                    <Pressable
-                      key={option.value}
-                      onPress={() => setForm((cur) => ({ ...cur, effect_rating: option.value }))}
-                      style={[styles.pill, selected && { backgroundColor: '#7E22CE', borderColor: '#7E22CE' }]}>
-                      <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{option.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={styles.formLabel}>课程类型</Text>
-              <SelectPills value={form.course_type} options={courseTypes} onChange={(value) => setForm((cur) => ({ ...cur, course_type: value }))} accent="#4F46E5" />
-              <Field label="上课内容" value={form.content} multiline placeholder="今天讲了哪些核心知识点？" onChangeText={(value) => setForm((cur) => ({ ...cur, content: value }))} />
-              <Field label="完成练习" value={form.practice_content} multiline placeholder="学生做了哪些练习题？" onChangeText={(value) => setForm((cur) => ({ ...cur, practice_content: value }))} />
-              <Field label="突发意外" value={form.unexpected} multiline placeholder="计划外情况" onChangeText={(value) => setForm((cur) => ({ ...cur, unexpected: value }))} />
-              <Field label="教学反思" value={form.reflection} multiline placeholder="后续要改进什么？" onChangeText={(value) => setForm((cur) => ({ ...cur, reflection: value }))} />
-            </ScrollView>
-            <View style={styles.modalFooter}>
-              <PrimaryButton label="取消" tone="plain" onPress={() => setAdding(false)} />
-              <PrimaryButton label="保存" icon="save-outline" disabled={!form.class_name.trim() || !form.content.trim()} onPress={() => void save()} />
+      <Pressable style={styles.fab} onPress={() => bottomSheetRef.current?.present()}>
+        <LinearGradient
+          colors={['#10B981', '#047857']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['85%']}
+        index={0}
+        backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetIndicator}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.sheetTitle}>记录课堂日志</Text>
+            <View style={{ height: spacing.lg }} />
+            <Field label="授课班级" value={form.class_name} placeholder="例如：高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, class_name: value }))} />
+            <Text style={styles.formLabel}>效果评分</Text>
+            <View style={styles.pills}>
+              {effectRatingOptions.map((option) => {
+                const selected = form.effect_rating === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setForm((cur) => ({ ...cur, effect_rating: option.value }))}
+                    style={[styles.pill, selected && { backgroundColor: '#7E22CE', borderColor: '#7E22CE' }]}>
+                    <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
-          </KeyboardAvoidingView>
-        </Screen>
-      </Modal>
+            <Text style={styles.formLabel}>课程类型</Text>
+            <SelectPills value={form.course_type} options={courseTypes} onChange={(value) => setForm((cur) => ({ ...cur, course_type: value }))} accent="#4F46E5" />
+            <Field label="上课内容" value={form.content} multiline placeholder="今天讲了哪些核心知识点？" onChangeText={(value) => setForm((cur) => ({ ...cur, content: value }))} />
+            <Field label="完成练习" value={form.practice_content} multiline placeholder="学生做了哪些练习题？" onChangeText={(value) => setForm((cur) => ({ ...cur, practice_content: value }))} />
+            <Field label="突发意外" value={form.unexpected} multiline placeholder="计划外情况" onChangeText={(value) => setForm((cur) => ({ ...cur, unexpected: value }))} />
+            <Field label="教学反思" value={form.reflection} multiline placeholder="后续要改进什么？" onChangeText={(value) => setForm((cur) => ({ ...cur, reflection: value }))} />
+            <View style={styles.formActions}>
+              <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+              <View style={{ flex: 1 }}>
+                <PrimaryButton label="保存" icon="save-outline" disabled={!form.class_name.trim() || !form.content.trim()} onPress={() => void save()} />
+              </View>
+            </View>
+          </BottomSheetScrollView>
+        </KeyboardAvoidingView>
+      </BottomSheetModal>
     </ScreenShell>
   );
 }
@@ -748,7 +834,7 @@ const cycles = [
 
 export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/finances/subscriptions');
-  const [modalOpen, setModalOpen] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [editing, setEditing] = useState<Item | null>(null);
   const [form, setForm] = useState({ name: '', amount: '', cycle: 'monthly', next_billing_date: today(), category: '', notes: '', is_active: 'true' });
   const monthlyTotal = items.filter((item) => item.is_active).reduce((sum, item) => sum + Number(item.amount || 0) * (cycles.find((cycle) => cycle.value === item.cycle)?.factor || 0), 0);
@@ -756,7 +842,7 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
   const reset = () => {
     setEditing(null);
     setForm({ name: '', amount: '', cycle: 'monthly', next_billing_date: today(), category: '', notes: '', is_active: 'true' });
-    setModalOpen(false);
+    bottomSheetRef.current?.dismiss();
   };
   const save = async () => {
     if (!form.name.trim() || Number(form.amount) <= 0) return;
@@ -776,21 +862,20 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
       setEditing(null);
       setForm({ name: '', amount: '', cycle: 'monthly', next_billing_date: today(), category: '', notes: '', is_active: 'true' });
     }
-    setModalOpen(true);
+    bottomSheetRef.current?.present();
   };
   const remove = async () => {
     if (!editing) return;
     confirmRemove(editing.name, async () => {
       await apiRequest(`/finances/subscriptions/${editing.id}`, { method: 'DELETE' });
-      setModalOpen(false);
+      bottomSheetRef.current?.dismiss();
       await load();
     });
   };
 
   return (
     <ScreenShell title="订阅" subtitle={`每月订阅总额 ${money(monthlyTotal)}`} onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="新增订阅" icon="add" onPress={() => openForm()} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <StateView loading={loading} error={error} onRetry={load} />
         {items.map((item) => (
           <Pressable key={item.id} onLongPress={() => openForm(item)}>
@@ -813,10 +898,28 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
           </Pressable>
         ))}
       </ScrollView>
-      <Modal animationType="slide" visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
-        <Screen>
-          <Header title={editing ? '编辑订阅' : '新增订阅'} action={<IconButton name="close" label="关闭" soft onPress={() => setModalOpen(false)} />} />
-          <ScrollView contentContainerStyle={styles.content}>
+
+      <Pressable style={styles.fab} onPress={() => openForm()}>
+        <LinearGradient
+          colors={['#F43F5E', '#BE123C']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['85%']}
+        index={0}
+        backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetIndicator}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.sheetTitle}>{editing ? '编辑订阅' : '新增订阅'}</Text>
+            <View style={{ height: spacing.lg }} />
             <Field label="订阅名称" value={form.name} placeholder="如：Spotify 家庭版" onChangeText={(value) => setForm((cur) => ({ ...cur, name: value }))} />
             <View style={styles.formRow}>
               <Field label="金额" value={form.amount} keyboardType="decimal-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, amount: value }))} />
@@ -827,12 +930,15 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
             <Field label="分类" value={form.category} placeholder="视频 / 音乐 / 软件" onChangeText={(value) => setForm((cur) => ({ ...cur, category: value }))} />
             <Field label="备注" value={form.notes} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
             <View style={styles.formActions}>
-              <PrimaryButton label={editing ? '保存修改' : '新增订阅'} icon="save-outline" disabled={!form.name.trim() || Number(form.amount) <= 0} onPress={() => void save()} />
-              {editing ? <PrimaryButton label="删除订阅" icon="trash-outline" tone="danger" onPress={remove} /> : null}
+              {editing ? <PrimaryButton label="删除" icon="trash-outline" tone="danger" onPress={remove} /> : null}
+              <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+              <View style={{ flex: 1 }}>
+                <PrimaryButton label={editing ? '保存修改' : '新增订阅'} icon="save-outline" disabled={!form.name.trim() || Number(form.amount) <= 0} onPress={() => void save()} />
+              </View>
             </View>
-          </ScrollView>
-        </Screen>
-      </Modal>
+          </BottomSheetScrollView>
+        </KeyboardAvoidingView>
+      </BottomSheetModal>
     </ScreenShell>
   );
 }
@@ -858,7 +964,7 @@ function assetStats(item: Item) {
 
 export function AssetScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/guiwu/');
-  const [modalOpen, setModalOpen] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [editing, setEditing] = useState<Item | null>(null);
   const [form, setForm] = useState({ name: '', category: assetCategories[0], price: '', purchase_date: today(), lifespan_type: 'years', lifespan_value: '3', status: 'in_use', notes: '' });
   const processed: AssetItem[] = items.map((item) => ({ ...item, ...assetStats(item) }));
@@ -887,7 +993,7 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
       setEditing(null);
       setForm({ name: '', category: assetCategories[0], price: '', purchase_date: today(), lifespan_type: 'years', lifespan_value: '3', status: 'in_use', notes: '' });
     }
-    setModalOpen(true);
+    bottomSheetRef.current?.present();
   };
   const save = async () => {
     const factor = form.lifespan_type === 'years' ? 365 : form.lifespan_type === 'months' ? 30 : 1;
@@ -895,14 +1001,13 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
       method: editing ? 'PUT' : 'POST',
       body: { name: form.name.trim(), category: form.category, price: Number(form.price), purchase_date: form.purchase_date, expected_lifespan_days: Math.max(1, Number(form.lifespan_value || 1) * factor), status: form.status, notes: form.notes.trim() || null },
     });
-    setModalOpen(false);
+    bottomSheetRef.current?.dismiss();
     await load();
   };
 
   return (
     <ScreenShell title="归物" subtitle="掌控个人资产和每日持有成本" onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="录入新资产" icon="add" onPress={() => open()} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <View style={styles.statsGrid}>
           <Stat label="资产总计" value={money(dashboard.totalOriginal)} subValue={`每日总成本: ${money(dashboard.totalDailyCost)}/天`} />
         </View>
@@ -931,10 +1036,28 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
           </Pressable>
         ))}
       </ScrollView>
-      <Modal animationType="slide" visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
-        <Screen>
-          <Header title={editing ? '编辑资产' : '录入新资产'} action={<IconButton name="close" label="关闭" soft onPress={() => setModalOpen(false)} />} />
-          <ScrollView contentContainerStyle={styles.content}>
+
+      <Pressable style={styles.fab} onPress={() => open()}>
+        <LinearGradient
+          colors={['#F59E0B', '#D97706']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['85%']}
+        index={0}
+        backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetIndicator}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.sheetTitle}>{editing ? '编辑资产' : '录入新资产'}</Text>
+            <View style={{ height: spacing.lg }} />
             <Field label="物品名称" value={form.name} onChangeText={(value) => setForm((cur) => ({ ...cur, name: value }))} />
             <Text style={styles.formLabel}>分类</Text>
             <SelectPills value={form.category} options={assetCategories} onChange={(value) => setForm((cur) => ({ ...cur, category: value }))} accent="#4F46E5" />
@@ -951,13 +1074,16 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
             <Field label="备注" value={form.notes} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
             <View style={styles.formActions}>
               {editing && (
-                <PrimaryButton label="删除" tone="plain" onPress={() => confirmRemove(editing.name, async () => { await apiRequest(`/guiwu/${editing.id}`, { method: 'DELETE' }); setModalOpen(false); await load(); })} />
+                <PrimaryButton label="删除" tone="danger" onPress={() => confirmRemove(editing.name, async () => { await apiRequest(`/guiwu/${editing.id}`, { method: 'DELETE' }); bottomSheetRef.current?.dismiss(); await load(); })} />
               )}
-              <PrimaryButton label={editing ? '保存修改' : '确认录入'} icon="checkmark" disabled={!form.name.trim()} onPress={() => void save()} />
+              <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+              <View style={{ flex: 1 }}>
+                <PrimaryButton label={editing ? '保存修改' : '确认录入'} icon="checkmark" disabled={!form.name.trim()} onPress={() => void save()} />
+              </View>
             </View>
-          </ScrollView>
-        </Screen>
-      </Modal>
+          </BottomSheetScrollView>
+        </KeyboardAvoidingView>
+      </BottomSheetModal>
     </ScreenShell>
   );
 }
@@ -977,6 +1103,7 @@ function Stat({ label, value, danger, subValue }: { label: string; value: string
 export function WishlistScreen({ onBack }: { onBack: () => void }) {
   const { items: allItems, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/extras/wishlists/');
   const [category, setCategory] = useState('shopping');
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [activeTag, setActiveTag] = useState('all');
   const [title, setTitle] = useState('');
   const [selected, setSelected] = useState<Item | null>(null);
@@ -993,29 +1120,37 @@ export function WishlistScreen({ onBack }: { onBack: () => void }) {
   const filtered = activeTag === 'all' ? items : items.filter((item) => (category === 'travel' && item.location === activeTag) || String(item.custom_tags || '').split(',').map((tag) => tag.trim()).includes(activeTag));
 
   const add = async () => {
-    if (!title.trim()) return;
-    await apiRequest('/extras/wishlists/', { method: 'POST', body: { title: title.trim(), category, is_fulfilled: false } });
-    setTitle('');
+    if (!form.title.trim()) return;
+    await apiRequest('/extras/wishlists/', { method: 'POST', body: { title: form.title.trim(), location: form.location.trim() || null, custom_tags: form.custom_tags.trim() || null, description: form.description.trim() || null, category, is_fulfilled: false } });
+    setForm({ title: '', location: '', custom_tags: '', description: '' });
+    bottomSheetRef.current?.dismiss();
     await load();
   };
   const select = (item: Item) => {
     setSelected(item);
     setForm({ title: item.title || '', location: item.location || '', custom_tags: item.custom_tags || '', description: item.description || '' });
+    bottomSheetRef.current?.present();
   };
   const save = async () => {
     if (!selected) return;
     await apiRequest(`/extras/wishlists/${selected.id}`, { method: 'PUT', body: { title: form.title.trim(), location: form.location.trim() || null, custom_tags: form.custom_tags.trim() || null, description: form.description.trim() || null } });
+    bottomSheetRef.current?.dismiss();
     await load();
+  };
+  const remove = async () => {
+    if (!selected) return;
+    confirmRemove(selected.title, async () => {
+      await apiRequest(`/extras/wishlists/${selected.id}`, { method: 'DELETE' });
+      setSelected(null);
+      bottomSheetRef.current?.dismiss();
+      await load();
+    });
   };
 
   return (
     <ScreenShell title="愿望" subtitle="购物愿望和旅行愿望" onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <SegmentedControl value={category} onChange={(value) => { setCategory(value); setActiveTag('all'); setSelected(null); }} options={[{ label: '购物愿望单', value: 'shopping' }, { label: '旅行愿望单', value: 'travel' }]} />
-        <View style={styles.quickAdd}>
-          <TextInput value={title} onChangeText={setTitle} placeholder={category === 'shopping' ? '添加一个新的购物愿望...' : '添加一个新的旅行地点...'} placeholderTextColor={colors.faint} style={styles.quickInput} />
-          <Pressable onPress={add} style={styles.addButton}><Ionicons name="add" size={22} color="#fff" /></Pressable>
-        </View>
         <View style={styles.pills}>
           <Pressable onPress={() => setActiveTag('all')} style={[styles.pill, activeTag === 'all' && styles.pillSelected]}><Text style={[styles.pillText, activeTag === 'all' && styles.pillTextSelected]}>全部 ({items.length})</Text></Pressable>
           {availableTags.map((tag) => <Pressable key={tag} onPress={() => setActiveTag(tag)} style={[styles.pill, activeTag === tag && styles.pillSelected]}><Text style={[styles.pillText, activeTag === tag && styles.pillTextSelected]}>{tag}</Text></Pressable>)}
@@ -1035,28 +1170,58 @@ export function WishlistScreen({ onBack }: { onBack: () => void }) {
                     {String(item.custom_tags || '').split(',').filter(Boolean).map((tag) => <Tag key={tag} label={tag.trim()} />)}
                   </View>
                 </View>
-                <DeleteButton onPress={() => confirmRemove(item.title, async () => { await apiRequest(`/extras/wishlists/${item.id}`, { method: 'DELETE' }); setSelected(null); await load(); })} />
               </View>
-              {selected?.id === item.id ? (
-                <View style={styles.detailBlock}>
-                  <Field label={category === 'shopping' ? '愿望名称' : '地点'} value={form.title} onChangeText={(value) => setForm((cur) => ({ ...cur, title: value }))} />
-                  <Field label={category === 'shopping' ? '价格预估' : '坐标 / 分类'} value={form.location} onChangeText={(value) => setForm((cur) => ({ ...cur, location: value }))} />
-                  <Field label="自定义标签" value={form.custom_tags} placeholder="逗号分隔" onChangeText={(value) => setForm((cur) => ({ ...cur, custom_tags: value }))} />
-                  <Field label="备注说明" value={form.description} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, description: value }))} />
-                  <PrimaryButton label="保存修改" icon="checkmark" onPress={() => void save()} />
-                </View>
-              ) : null}
             </SectionCard>
           </Pressable>
         ))}
       </ScrollView>
+
+      <Pressable style={styles.fab} onPress={() => {
+        setSelected(null);
+        setForm({ title: '', location: '', custom_tags: '', description: '' });
+        bottomSheetRef.current?.present();
+      }}>
+        <LinearGradient
+          colors={['#EC4899', '#B45309']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['85%']}
+        index={0}
+        backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetIndicator}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.sheetTitle}>{selected ? '编辑愿望' : '记录新愿望'}</Text>
+            <View style={{ height: spacing.lg }} />
+            <Field label={category === 'shopping' ? '愿望名称' : '地点'} value={form.title} onChangeText={(value) => setForm((cur) => ({ ...cur, title: value }))} />
+            <Field label={category === 'shopping' ? '价格预估' : '坐标 / 分类'} value={form.location} onChangeText={(value) => setForm((cur) => ({ ...cur, location: value }))} />
+            <Field label="自定义标签" value={form.custom_tags} placeholder="逗号分隔" onChangeText={(value) => setForm((cur) => ({ ...cur, custom_tags: value }))} />
+            <Field label="备注说明" value={form.description} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, description: value }))} />
+            <View style={styles.formActions}>
+              {selected ? <PrimaryButton label="删除" tone="danger" onPress={remove} /> : null}
+              <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+              <View style={{ flex: 1 }}>
+                <PrimaryButton label={selected ? '保存修改' : '确认添加'} icon="checkmark" disabled={!form.title.trim()} onPress={() => selected ? void save() : void add()} />
+              </View>
+            </View>
+          </BottomSheetScrollView>
+        </KeyboardAvoidingView>
+      </BottomSheetModal>
     </ScreenShell>
   );
 }
 
 export function FootprintScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/extras/footprints/');
-  const [modalOpen, setModalOpen] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [selected, setSelected] = useState<Item | null>(null);
   const [fullImage, setFullImage] = useState<string | null>(null);
   const [form, setForm] = useState({ location: '', coordinate: '', visit_date: today(), notes: '', rating: '5', image_url: '' });
@@ -1081,27 +1246,26 @@ export function FootprintScreen({ onBack }: { onBack: () => void }) {
   const open = (item?: Item) => {
     setSelected(item || null);
     setForm({ location: item?.location || '', coordinate: item?.coordinate || '', visit_date: item?.visit_date || today(), notes: item?.notes || '', rating: String(item?.rating || 5), image_url: item?.image_url || '' });
-    setModalOpen(true);
+    bottomSheetRef.current?.present();
   };
   const save = async () => {
     if (!form.location.trim()) return;
     await apiRequest(selected ? `/extras/footprints/${selected.id}` : '/extras/footprints/', { method: selected ? 'PUT' : 'POST', body: { location: form.location.trim(), coordinate: form.coordinate.trim() || null, visit_date: form.visit_date, notes: form.notes.trim() || null, rating: Number(form.rating), image_url: form.image_url || null } });
-    setModalOpen(false);
+    bottomSheetRef.current?.dismiss();
     await load();
   };
   const remove = async () => {
     if (!selected) return;
     confirmRemove(selected.location, async () => {
       await apiRequest(`/extras/footprints/${selected.id}`, { method: 'DELETE' });
-      setModalOpen(false);
+      bottomSheetRef.current?.dismiss();
       await load();
     });
   };
 
   return (
     <ScreenShell title="足迹" subtitle={`${items.length} 个去过的地方`} onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="记录足迹" icon="add" onPress={() => open()} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <StateView loading={loading} error={error} onRetry={load} />
         {items.map((item) => (
           <Pressable key={item.id} onLongPress={() => open(item)}>
@@ -1121,22 +1285,39 @@ export function FootprintScreen({ onBack }: { onBack: () => void }) {
           </Pressable>
         ))}
       </ScrollView>
-      <EditFootprintModal modalOpen={modalOpen} setModalOpen={setModalOpen} selected={selected} form={form} setForm={setForm} uploading={uploading} pickImage={pickImage} save={save} remove={remove} />
+      <EditFootprintModal bottomSheetRef={bottomSheetRef} selected={selected} form={form} setForm={setForm} uploading={uploading} pickImage={pickImage} save={save} remove={remove} />
       <Modal visible={!!fullImage} transparent animationType="fade" onRequestClose={() => setFullImage(null)}>
         <Pressable style={styles.fullImageBackdrop} onPress={() => setFullImage(null)}>
           {fullImage ? <Image source={{ uri: fullImage }} style={styles.fullImage} resizeMode="contain" /> : null}
         </Pressable>
       </Modal>
+
+      <Pressable style={styles.fab} onPress={() => open()}>
+        <LinearGradient
+          colors={['#10B981', '#047857']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
     </ScreenShell>
   );
 }
 
-function EditFootprintModal({ modalOpen, setModalOpen, selected, form, setForm, uploading, pickImage, save, remove }: any) {
+function EditFootprintModal({ bottomSheetRef, selected, form, setForm, uploading, pickImage, save, remove }: any) {
   return (
-    <Modal animationType="slide" visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
-      <Screen>
-        <Header title={selected ? '编辑足迹' : '记录新足迹'} action={<IconButton name="close" label="关闭" soft onPress={() => setModalOpen(false)} />} />
-        <ScrollView contentContainerStyle={styles.content}>
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={['85%']}
+      index={0}
+      backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+      backgroundStyle={styles.bottomSheetBg}
+      handleIndicatorStyle={styles.bottomSheetIndicator}
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sheetTitle}>{selected ? '编辑足迹' : '记录新足迹'}</Text>
+          <View style={{ height: spacing.lg }} />
           <Field label="地点" value={form.location} placeholder="例如：故宫博物院" onChangeText={(value) => setForm((cur: any) => ({ ...cur, location: value }))} />
           <Field label="城市 / 坐标" value={form.coordinate} placeholder="例如：北京" onChangeText={(value) => setForm((cur: any) => ({ ...cur, coordinate: value }))} />
           <DateField label="日期" value={form.visit_date} onChangeText={(value) => setForm((cur: any) => ({ ...cur, visit_date: value }))} />
@@ -1144,11 +1325,16 @@ function EditFootprintModal({ modalOpen, setModalOpen, selected, form, setForm, 
           <Field label="记录见闻" value={form.notes} multiline onChangeText={(value) => setForm((cur: any) => ({ ...cur, notes: value }))} />
           {form.image_url ? <Image source={{ uri: buildAssetUrl(form.image_url) || form.image_url }} style={styles.previewImage} /> : null}
           <PrimaryButton label={uploading ? '上传中' : '选择照片'} icon="image-outline" tone="plain" onPress={pickImage} />
-          <PrimaryButton label="保存足迹" icon="checkmark" disabled={!form.location.trim()} onPress={() => void save()} />
-          {selected ? <PrimaryButton label="删除足迹" icon="trash-outline" tone="danger" onPress={remove} /> : null}
-        </ScrollView>
-      </Screen>
-    </Modal>
+          <View style={styles.formActions}>
+            {selected ? <PrimaryButton label="删除" tone="danger" onPress={remove} /> : null}
+            <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+            <View style={{ flex: 1 }}>
+              <PrimaryButton label="保存足迹" icon="checkmark" disabled={!form.location.trim()} onPress={() => void save()} />
+            </View>
+          </View>
+        </BottomSheetScrollView>
+      </KeyboardAvoidingView>
+    </BottomSheetModal>
   );
 }
 
@@ -1156,18 +1342,18 @@ const readingStatus = { to_read: '想读', reading: '在读', finished: '已读'
 
 export function ReadingScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/extras/readings/');
-  const [modalOpen, setModalOpen] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [editing, setEditing] = useState<Item | null>(null);
   const [form, setForm] = useState({ title: '', author: '', status: 'to_read', rating: '5', notes: '' });
   const stats = { total: items.length, reading: items.filter((i) => i.status === 'reading').length, finished: items.filter((i) => i.status === 'finished').length };
   const open = (item?: Item) => {
     setEditing(item || null);
     setForm({ title: item?.title || '', author: item?.author || '', status: item?.status || 'to_read', rating: String(item?.rating || 5), notes: item?.notes || '' });
-    setModalOpen(true);
+    bottomSheetRef.current?.present();
   };
   const save = async () => {
     await apiRequest(editing ? `/extras/readings/${editing.id}` : '/extras/readings/', { method: editing ? 'PUT' : 'POST', body: { title: form.title.trim(), author: form.author.trim() || null, status: form.status, rating: form.status === 'finished' ? Number(form.rating) : null, notes: form.notes.trim() || null } });
-    setModalOpen(false);
+    bottomSheetRef.current?.dismiss();
     await load();
   };
 
@@ -1175,15 +1361,14 @@ export function ReadingScreen({ onBack }: { onBack: () => void }) {
     if (!editing) return;
     confirmRemove(editing.title, async () => {
       await apiRequest(`/extras/readings/${editing.id}`, { method: 'DELETE' });
-      setModalOpen(false);
+      bottomSheetRef.current?.dismiss();
       await load();
     });
   };
 
   return (
     <ScreenShell title="阅读" subtitle="腹有诗书气自华" onBack={onBack}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="录入新书籍" icon="add" onPress={() => open()} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <SectionCard style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: spacing.xl }}>
           <View style={{ alignItems: 'center' }}>
             <Text style={{ fontSize: 13, color: colors.muted, fontWeight: '800', marginBottom: 4 }}>总藏书量</Text>
@@ -1219,29 +1404,50 @@ export function ReadingScreen({ onBack }: { onBack: () => void }) {
           </Pressable>
         ))}
       </ScrollView>
-      <ReadingModal visible={modalOpen} onClose={() => setModalOpen(false)} editing={editing} form={form} setForm={setForm} save={save} remove={remove} />
+      
+      <Pressable style={styles.fab} onPress={() => open()}>
+        <LinearGradient
+          colors={['#8B5CF6', '#4338CA']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <ReadingModal bottomSheetRef={bottomSheetRef} editing={editing} form={form} setForm={setForm} save={save} remove={remove} />
     </ScreenShell>
   );
 }
 
-function ReadingModal({ visible, onClose, editing, form, setForm, save, remove }: any) {
+function ReadingModal({ bottomSheetRef, editing, form, setForm, save, remove }: any) {
   return (
-    <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
-      <Screen>
-        <Header title={editing ? '编辑书籍' : '录入新书籍'} action={<IconButton name="close" label="关闭" soft onPress={onClose} />} />
-        <ScrollView contentContainerStyle={styles.content}>
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={['85%']}
+      index={0}
+      backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+      backgroundStyle={styles.bottomSheetBg}
+      handleIndicatorStyle={styles.bottomSheetIndicator}
+    >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sheetTitle}>{editing ? '编辑书籍' : '录入新书籍'}</Text>
+          <View style={{ height: spacing.lg }} />
           <Field label="书名" value={form.title} onChangeText={(value) => setForm((cur: any) => ({ ...cur, title: value }))} />
           <Field label="作者" value={form.author} onChangeText={(value) => setForm((cur: any) => ({ ...cur, author: value }))} />
           <SegmentedControl value={form.status} onChange={(value) => setForm((cur: any) => ({ ...cur, status: value }))} options={Object.entries(readingStatus).map(([value, label]) => ({ value, label }))} />
           {form.status === 'finished' ? <SegmentedControl value={form.rating} onChange={(value) => setForm((cur: any) => ({ ...cur, rating: value }))} options={[1, 2, 3, 4, 5].map((value) => ({ label: `${value}星`, value: String(value) }))} /> : null}
           <Field label="笔记" value={form.notes} multiline onChangeText={(value) => setForm((cur: any) => ({ ...cur, notes: value }))} />
           <View style={styles.formActions}>
-            {editing ? <PrimaryButton label="删除书籍" icon="trash-outline" tone="danger" onPress={remove} /> : null}
-            <PrimaryButton label={editing ? '保存修改' : '确认录入'} icon="checkmark" disabled={!form.title.trim()} onPress={() => void save()} />
+            {editing ? <PrimaryButton label="删除" tone="danger" onPress={remove} /> : null}
+            <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+            <View style={{ flex: 1 }}>
+              <PrimaryButton label={editing ? '保存修改' : '确认录入'} icon="checkmark" disabled={!form.title.trim()} onPress={() => void save()} />
+            </View>
           </View>
-        </ScrollView>
-      </Screen>
-    </Modal>
+        </BottomSheetScrollView>
+      </KeyboardAvoidingView>
+    </BottomSheetModal>
   );
 }
 
@@ -1296,7 +1502,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.surfaceMuted, borderRadius: radius.lg, color: colors.text, fontSize: 16, minHeight: 52, paddingHorizontal: spacing.lg },
   textArea: { minHeight: 150, paddingTop: spacing.md },
   formRow: { gap: spacing.md },
-  formActions: { flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end' },
+  formActions: { flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end', marginTop: spacing.xl, paddingBottom: spacing.md },
   group: { gap: spacing.md },
   groupTitle: { color: colors.textSoft, fontSize: 14, fontWeight: '900' },
   detailBlock: { borderTopColor: colors.border, borderTopWidth: 1, gap: spacing.md, marginTop: spacing.md, paddingTop: spacing.md },
@@ -1324,4 +1530,9 @@ const styles = StyleSheet.create({
   previewImage: { backgroundColor: colors.border, borderRadius: radius.lg, height: 220, width: '100%' },
   fullImageBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.9)', flex: 1, justifyContent: 'center', padding: spacing.lg },
   fullImage: { height: '90%', width: '100%' },
+  fab: { position: 'absolute', bottom: 32, right: 24, width: 64, height: 64, borderRadius: 32, ...shadow, elevation: 8, zIndex: 100 },
+  fabGradient: { flex: 1, borderRadius: 32, justifyContent: 'center', alignItems: 'center' },
+  bottomSheetBg: { backgroundColor: colors.surface, borderRadius: 24 },
+  bottomSheetIndicator: { backgroundColor: colors.border, width: 48, height: 6, borderRadius: 3 },
+  sheetTitle: { fontSize: 22, fontWeight: '900', color: colors.text },
 });
