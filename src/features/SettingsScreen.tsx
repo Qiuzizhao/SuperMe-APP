@@ -58,6 +58,21 @@ export function SettingsScreen() {
     teaching_class_types: ''
   });
 
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    expense: false,
+    income: false,
+    note: false,
+    class: false,
+  });
+
+  const toggleSection = (section: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
   const load = useCallback(async () => {
     setError(null);
     try {
@@ -399,10 +414,17 @@ export function SettingsScreen() {
 
           {/* 移动端优化后的 支出类别管理 (Accordion) */}
           <Card>
-            <Text style={styles.cardTitle}>支出类别</Text>
-            <Text style={styles.helperText}>层级联动的分类管理：账单 ➔ 类别 ➔ 子类别</Text>
+            <Pressable onPress={() => toggleSection('expense')} style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderTitle}>
+                <Text style={[styles.cardTitle, { marginBottom: spacing.xs }]}>支出类别</Text>
+                <Text style={[styles.helperText, { marginBottom: 0 }]}>层级联动的分类管理：账单 ➔ 类别 ➔ 子类别</Text>
+              </View>
+              <Ionicons name={expandedSections.expense ? "chevron-up" : "chevron-down"} size={24} color={colors.muted} />
+            </Pressable>
             
-            <View style={styles.accordionContainer}>
+            {expandedSections.expense && (
+              <View style={styles.sectionContent}>
+                <View style={styles.accordionContainer}>
               {expenseTree.map((bill, bIdx) => {
                 const isBillExpanded = expandedBillIdx === bIdx;
                 return (
@@ -507,14 +529,23 @@ export function SettingsScreen() {
                 </Pressable>
               </View>
             </View>
+              </View>
+            )}
           </Card>
 
           {/* 收入类别口径配置 */}
           <Card>
-            <Text style={styles.cardTitle}>收入类别口径</Text>
-            <Text style={styles.helperText}>决定收入项在分析报表中的计算逻辑。</Text>
+            <Pressable onPress={() => toggleSection('income')} style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderTitle}>
+                <Text style={[styles.cardTitle, { marginBottom: spacing.xs }]}>收入类别口径</Text>
+                <Text style={[styles.helperText, { marginBottom: 0 }]}>决定收入项在分析报表中的计算逻辑。</Text>
+              </View>
+              <Ionicons name={expandedSections.income ? "chevron-up" : "chevron-down"} size={24} color={colors.muted} />
+            </Pressable>
             
-            <View style={styles.incomeCatList}>
+            {expandedSections.income && (
+              <View style={styles.sectionContent}>
+                <View style={styles.incomeCatList}>
               {configs.finance_income_categories.map((cat: string) => {
                 let level = 'net';
                 if (configs.finance_income_total_cats?.includes(cat)) level = 'total';
@@ -558,18 +589,38 @@ export function SettingsScreen() {
                 <Ionicons name="add" size={20} color={colors.primary} />
               </Pressable>
             </View>
+              </View>
+            )}
           </Card>
 
           {/* 随手记标签 */}
           <Card>
-            <Text style={styles.cardTitle}>随手记标签</Text>
-            {renderTags('note_tags', configs.note_tags, '输入新标签...')}
+            <Pressable onPress={() => toggleSection('note')} style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderTitle}>
+                <Text style={[styles.cardTitle, { marginBottom: 0 }]}>随手记标签</Text>
+              </View>
+              <Ionicons name={expandedSections.note ? "chevron-up" : "chevron-down"} size={24} color={colors.muted} />
+            </Pressable>
+            {expandedSections.note && (
+              <View style={styles.sectionContent}>
+                {renderTags('note_tags', configs.note_tags, '输入新标签...')}
+              </View>
+            )}
           </Card>
 
           {/* 课堂类型标签 */}
           <Card>
-            <Text style={styles.cardTitle}>课堂类型标签</Text>
-            {renderTags('teaching_class_types', configs.teaching_class_types, '输入新类型...')}
+            <Pressable onPress={() => toggleSection('class')} style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderTitle}>
+                <Text style={[styles.cardTitle, { marginBottom: 0 }]}>课堂类型标签</Text>
+              </View>
+              <Ionicons name={expandedSections.class ? "chevron-up" : "chevron-down"} size={24} color={colors.muted} />
+            </Pressable>
+            {expandedSections.class && (
+              <View style={styles.sectionContent}>
+                {renderTags('teaching_class_types', configs.teaching_class_types, '输入新类型...')}
+              </View>
+            )}
           </Card>
           
           <View style={{ height: 40 }} />
@@ -624,6 +675,23 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   
+  // Section Headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionHeaderTitle: {
+    flex: 1,
+    paddingRight: spacing.md,
+  },
+  sectionContent: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+
   // Tags UI
   sectionBlock: {
     marginTop: spacing.xs,
