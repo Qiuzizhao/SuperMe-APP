@@ -271,6 +271,22 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
   const [thread, setThread] = useState<Item[]>([]);
   const [modalKind, setModalKind] = useState<'root' | 'thread' | 'edit' | null>(null);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [moodAssetsReady, setMoodAssetsReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const preloadMoodAssets = async () => {
+      try {
+        await Asset.loadAsync(Object.values(MOOD_IMAGES));
+      } finally {
+        if (mounted) setMoodAssetsReady(true);
+      }
+    };
+    void preloadMoodAssets();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const loadThread = useCallback(async (id: number) => {
     const data = await apiRequest<Item[]>(`/notes/thread/${id}`);
@@ -364,6 +380,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
         title={modalKind === 'edit' ? '编辑随记' : modalKind === 'thread' ? '添加事件新进展' : '记录新想法'}
         onClose={() => { setModalKind(null); setEditingItem(null); }}
         initialData={editingItem}
+        moodAssetsReady={moodAssetsReady}
         onDelete={editingItem ? () => remove(editingItem) : undefined}
         onSubmit={(form) => {
           const rootId = modalKind === 'thread' && selected
@@ -376,7 +393,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function NoteModal({ visible, title, onClose, onSubmit, initialData, onDelete }: { visible: boolean; title: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => void; initialData?: Item | null; onDelete?: () => void }) {
+function NoteModal({ visible, title, onClose, onSubmit, initialData, moodAssetsReady, onDelete }: { visible: boolean; title: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => void; initialData?: Item | null; moodAssetsReady?: boolean; onDelete?: () => void }) {
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [mood, setMood] = useState<typeof moodOptions[number] | null>(null);
@@ -427,7 +444,7 @@ function NoteModal({ visible, title, onClose, onSubmit, initialData, onDelete }:
           <View style={styles.pills}>
             {moodOptions.map((item) => (
               <Pressable key={item.level} onPress={() => setMood(mood?.level === item.level ? null : item)} style={[styles.miniMood, mood?.level === item.level && styles.pillSelected]}>
-                <Text style={styles.staffEmoji}>{item.emoji}</Text>
+                {moodAssetsReady ? <ExpoImage source={item.emoji} style={styles.staffEmojiImage} contentFit="contain" transition={0} cachePolicy="memory-disk" /> : null}
               </Pressable>
             ))}
           </View>
