@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, RefreshControl, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Dimensions } from 'react-native';
+import { Alert, Platform, RefreshControl, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Dimensions, Modal } from 'react-native';
 import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
 
 import { DateField, Header, IconButton, PrimaryButton, Screen, SegmentedControl, StateView } from '@/src/components/ui';
@@ -180,6 +180,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
   const [editDescription, setEditDescription] = useState('');
   const [editTransactionDate, setEditTransactionDate] = useState(todayDate());
   const [editBelongMonth, setEditBelongMonth] = useState(currentMonthValue());
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const [reportType, setReportType] = useState('monthly');
   const [expenseChartLevel, setExpenseChartLevel] = useState('category');
   const [chartType, setChartType] = useState('proportion');
@@ -283,6 +284,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
     if (activeTab === 'income') setIncomeCategory('');
     setTransactionDate(todayDate());
     setBelongMonth(currentMonthValue());
+    setAddModalOpen(false);
     await loadFinances();
   };
 
@@ -423,44 +425,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadFinances(); }} />}>
         <SegmentedControl value={activeTab} onChange={(value) => setActiveTab(value as 'expense' | 'income')} options={[{ label: '支出清单', value: 'expense' }, { label: '收入清单', value: 'income' }]} />
 
-        <View style={styles.billPanel}>
-          <Text style={styles.billPanelTitle}>新增{activeTab === 'expense' ? '支出' : '收入'}</Text>
-          <View style={styles.amountRow}>
-            <TextInput
-              value={amount}
-              onChangeText={setAmount}
-              onBlur={() => setAmount((current) => evaluateAmountExpression(current))}
-              placeholder="金额，可输入 12+8/2"
-              placeholderTextColor={colors.faint}
-              keyboardType="numbers-and-punctuation"
-              style={styles.amountInput}
-            />
-            <View style={styles.dateColumn}>
-              <DateField label="日期" value={transactionDate} onChangeText={setTransactionDate} />
-            </View>
-          </View>
-          {activeTab === 'income' ? (
-            <>
-              <DateField label="归属月份" value={belongMonth} onChangeText={setBelongMonth} mode="month" />
-              <PillSelector
-                label="收入类别"
-                value={incomeCategory}
-                options={incomeCategories}
-                onChange={setIncomeCategory}
-                fallback="其他收入"
-                accent={colors.success}
-              />
-            </>
-          ) : (
-            <>
-              <PillSelector label="账本" value={billObj?.name || ''} options={expenseTree.map((bill) => bill.name)} onChange={(name) => { const found = expenseTree.find((bill) => bill.name === name) || null; setBillObj(found); setCategoryObj(null); setSubcategoryObj(null); }} fallback="未选择账本" accent={colors.danger} />
-              <PillSelector label="类别" value={categoryObj?.name || ''} options={categories.map((category) => category.name)} onChange={(name) => { const found = categories.find((category) => category.name === name) || null; setCategoryObj(found); setSubcategoryObj(null); }} fallback="其他支出" accent={colors.danger} />
-              {subcategories.length > 0 ? <PillSelector label="子类别" value={subcategoryObj?.name || ''} options={subcategories.map((subcategory) => subcategory.name)} onChange={(name) => setSubcategoryObj(subcategories.find((subcategory) => subcategory.name === name) || null)} fallback="无子类别" accent={colors.danger} /> : null}
-            </>
-          )}
-          <TextInput value={description} onChangeText={setDescription} placeholder="备注说明" placeholderTextColor={colors.faint} style={styles.fullInput} />
-          <PrimaryButton label="添加账单" icon="add" disabled={!amount.trim()} onPress={() => void addFinance()} />
-        </View>
+        <PrimaryButton label={`新增${activeTab === 'expense' ? '支出' : '收入'}`} icon="add" onPress={() => setAddModalOpen(true)} />
 
         <View style={styles.billSummaryRow}>
           <View style={styles.billSummaryCard}>
@@ -528,6 +493,48 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
           )}
         </View>
       </ScrollView>
+      <Modal animationType="slide" visible={addModalOpen} onRequestClose={() => setAddModalOpen(false)}>
+        <Screen>
+          <Header title={`新增${activeTab === 'expense' ? '支出' : '收入'}`} action={<IconButton name="close" label="关闭" soft onPress={() => setAddModalOpen(false)} />} />
+          <ScrollView contentContainerStyle={styles.financeContent}>
+            <View style={styles.amountRow}>
+              <TextInput
+                value={amount}
+                onChangeText={setAmount}
+                onBlur={() => setAmount((current) => evaluateAmountExpression(current))}
+                placeholder="金额，可输入 12+8/2"
+                placeholderTextColor={colors.faint}
+                keyboardType="numbers-and-punctuation"
+                style={styles.amountInput}
+              />
+              <View style={styles.dateColumn}>
+                <DateField label="日期" value={transactionDate} onChangeText={setTransactionDate} />
+              </View>
+            </View>
+            {activeTab === 'income' ? (
+              <>
+                <DateField label="归属月份" value={belongMonth} onChangeText={setBelongMonth} mode="month" />
+                <PillSelector
+                  label="收入类别"
+                  value={incomeCategory}
+                  options={incomeCategories}
+                  onChange={setIncomeCategory}
+                  fallback="其他收入"
+                  accent={colors.success}
+                />
+              </>
+            ) : (
+              <>
+                <PillSelector label="账本" value={billObj?.name || ''} options={expenseTree.map((bill) => bill.name)} onChange={(name) => { const found = expenseTree.find((bill) => bill.name === name) || null; setBillObj(found); setCategoryObj(null); setSubcategoryObj(null); }} fallback="未选择账本" accent={colors.danger} />
+                <PillSelector label="类别" value={categoryObj?.name || ''} options={categories.map((category) => category.name)} onChange={(name) => { const found = categories.find((category) => category.name === name) || null; setCategoryObj(found); setSubcategoryObj(null); }} fallback="其他支出" accent={colors.danger} />
+                {subcategories.length > 0 ? <PillSelector label="子类别" value={subcategoryObj?.name || ''} options={subcategories.map((subcategory) => subcategory.name)} onChange={(name) => setSubcategoryObj(subcategories.find((subcategory) => subcategory.name === name) || null)} fallback="无子类别" accent={colors.danger} /> : null}
+              </>
+            )}
+            <TextInput value={description} onChangeText={setDescription} placeholder="备注说明" placeholderTextColor={colors.faint} style={styles.fullInput} />
+            <PrimaryButton label="添加账单" icon="checkmark" disabled={!amount.trim()} onPress={() => void addFinance()} />
+          </ScrollView>
+        </Screen>
+      </Modal>
     </Screen>
   );
 }
@@ -807,8 +814,8 @@ function FinanceReport({
   const pieData = categoryData.map((item: any) => {
     const percent = filteredTotalAmount > 0 ? (item.value / filteredTotalAmount) * 100 : 0;
     return {
-      name: ` ${item.name} ${percent.toFixed(1)}%`,
-      population: item.value,
+      name: `${item.name} ${percent.toFixed(1)}%`,
+      population: percent,
       color: getTagHexColor(item.name),
       legendFontColor: '#6B7280',
       legendFontSize: 12,
@@ -825,9 +832,9 @@ function FinanceReport({
         <Text style={styles.reportTitle}>数据报表</Text>
         <SegmentedControl value={reportType} onChange={setReportType} options={[{ label: '周', value: 'weekly' }, { label: '月', value: 'monthly' }, { label: '年', value: 'yearly' }, { label: '自定义', value: 'custom' }]} />
       </View>
-      {reportType === 'weekly' ? <TextInput value={reportWeek} onChangeText={setReportWeek} style={styles.fullInput} /> : null}
+      {reportType === 'weekly' ? <DateField label="周" value={reportWeek} onChangeText={setReportWeek} mode="week" /> : null}
       {reportType === 'monthly' ? <DateField label="月份" value={reportMonth} onChangeText={setReportMonth} mode="month" /> : null}
-      {reportType === 'yearly' ? <TextInput value={reportYear} onChangeText={setReportYear} style={styles.fullInput} keyboardType="numeric" /> : null}
+      {reportType === 'yearly' ? <DateField label="年份" value={reportYear} onChangeText={setReportYear} mode="year" /> : null}
       {reportType === 'custom' ? (
         <View style={styles.amountRow}>
           <View style={styles.formColumn}>
@@ -913,7 +920,7 @@ function FinanceReport({
                 backgroundColor={"transparent"}
                 paddingLeft={"15"}
                 hasLegend={true}
-                absolute={true}
+                absolute={false}
                 center={[0, 0]}
               />
               {proportionType === 'donut' && (

@@ -140,9 +140,30 @@ function monthString(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
 }
 
-function parsePickerDate(value?: string, mode: 'date' | 'month' = 'date') {
+function yearString(date: Date) {
+  return String(date.getFullYear());
+}
+
+function weekString(date: Date) {
+  const start = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor((date.getTime() - start.getTime()) / 86400000);
+  const week = Math.ceil((days + start.getDay() + 1) / 7);
+  return `${date.getFullYear()}-W${pad(week)}`;
+}
+
+function parsePickerDate(value?: string, mode: 'date' | 'month' | 'year' | 'week' = 'date') {
   const now = new Date();
   if (!value) return now;
+  if (mode === 'year') {
+    const y = Number(value);
+    if (!isNaN(y)) return new Date(y, 0, 1);
+    return now;
+  }
+  if (mode === 'week' && value.includes('-W')) {
+    const [y, w] = value.split('-W').map(Number);
+    if (y && w) return new Date(y, 0, 1 + (w - 1) * 7);
+    return now;
+  }
   const parts = value.split('-').map(Number);
   if (mode === 'month' && parts.length >= 2 && parts[0] && parts[1]) return new Date(parts[0], parts[1] - 1, 1);
   if (parts.length >= 3 && parts[0] && parts[1] && parts[2]) return new Date(parts[0], parts[1] - 1, parts[2]);
@@ -180,7 +201,7 @@ export function DateField({
   label: string;
   value?: string;
   onChangeText: (value: string) => void;
-  mode?: 'date' | 'month';
+  mode?: 'date' | 'month' | 'year' | 'week';
   placeholder?: string;
   optional?: boolean;
 }) {
@@ -196,7 +217,10 @@ export function DateField({
   };
 
   const chooseDate = (date: Date) => {
-    onChangeText(mode === 'month' ? monthString(date) : dateString(date));
+    if (mode === 'year') onChangeText(yearString(date));
+    else if (mode === 'week') onChangeText(weekString(date));
+    else if (mode === 'month') onChangeText(monthString(date));
+    else onChangeText(dateString(date));
     setOpen(false);
   };
 
@@ -204,18 +228,34 @@ export function DateField({
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <Pressable onPress={openPicker} style={({ pressed }) => [styles.input, styles.dateInput, pressed && styles.pressed]}>
-        <Text style={[styles.dateInputText, !selectedValue && styles.dateInputPlaceholder]}>{selectedValue || placeholder || (mode === 'month' ? '选择月份' : '选择日期')}</Text>
+        <Text style={[styles.dateInputText, !selectedValue && styles.dateInputPlaceholder]}>{selectedValue || placeholder || (mode === 'year' ? '选择年份' : mode === 'month' ? '选择月份' : mode === 'week' ? '选择周' : '选择日期')}</Text>
         <Ionicons name="calendar-outline" size={20} color={colors.primary} />
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.pickerOverlay} onPress={() => setOpen(false)}>
           <Pressable style={styles.pickerPanel} onPress={(event) => event.stopPropagation()}>
             <View style={styles.pickerHeader}>
-              <IconButton name="chevron-back" label="上一个" soft onPress={() => setViewDate((date) => new Date(date.getFullYear(), date.getMonth() - (mode === 'month' ? 12 : 1), 1))} />
-              <Text style={styles.pickerTitle}>{mode === 'month' ? `${viewDate.getFullYear()}年` : `${viewDate.getFullYear()}年 ${viewDate.getMonth() + 1}月`}</Text>
-              <IconButton name="chevron-forward" label="下一个" soft onPress={() => setViewDate((date) => new Date(date.getFullYear(), date.getMonth() + (mode === 'month' ? 12 : 1), 1))} />
+              <IconButton name="chevron-back" label="上一个" soft onPress={() => setViewDate((date) => new Date(date.getFullYear() - (mode === 'year' ? 12 : (mode === 'month' ? 1 : 0)), date.getMonth() - (mode === 'date' || mode === 'week' ? 1 : 0), 1))} />
+              <Text style={styles.pickerTitle}>
+                {mode === 'year' ? `${viewDate.getFullYear() - 4} - ${viewDate.getFullYear() + 7}` : (mode === 'month' ? `${viewDate.getFullYear()}年` : `${viewDate.getFullYear()}年 ${viewDate.getMonth() + 1}月`)}
+              </Text>
+              <IconButton name="chevron-forward" label="下一个" soft onPress={() => setViewDate((date) => new Date(date.getFullYear() + (mode === 'year' ? 12 : (mode === 'month' ? 1 : 0)), date.getMonth() + (mode === 'date' || mode === 'week' ? 1 : 0), 1))} />
             </View>
-            {mode === 'month' ? (
+            {mode === 'year' ? (
+              <View style={styles.monthGrid}>
+                {Array.from({ length: 12 }, (_, index) => {
+                  const y = viewDate.getFullYear() - 4 + index;
+                  const date = new Date(y, 0, 1);
+                  const yValue = yearString(date);
+                  const selected = selectedValue === yValue;
+                  return (
+                    <Pressable key={yValue} onPress={() => chooseDate(date)} style={[styles.monthCell, selected && styles.pickerCellSelected]}>
+                      <Text style={[styles.monthCellText, selected && styles.pickerCellTextSelected]}>{y}年</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : mode === 'month' ? (
               <View style={styles.monthGrid}>
                 {Array.from({ length: 12 }, (_, index) => {
                   const date = new Date(viewDate.getFullYear(), index, 1);
@@ -235,11 +275,11 @@ export function DateField({
                 </View>
                 <View style={styles.dayGrid}>
                   {days.map(({ date, currentMonth }) => {
-                    const dayValue = dateString(date);
+                    const dayValue = mode === 'week' ? weekString(date) : dateString(date);
                     const selected = selectedValue === dayValue;
-                    const isToday = dayValue === dateString(today);
+                    const isToday = dayValue === (mode === 'week' ? weekString(today) : dateString(today));
                     return (
-                      <Pressable key={dayValue} onPress={() => chooseDate(date)} style={[styles.dayCell, selected && styles.pickerCellSelected, isToday && !selected && styles.todayCell]}>
+                      <Pressable key={dateString(date)} onPress={() => chooseDate(date)} style={[styles.dayCell, selected && styles.pickerCellSelected, isToday && !selected && styles.todayCell]}>
                         <Text style={[styles.dayCellText, !currentMonth && styles.dayCellMuted, selected && styles.pickerCellTextSelected]}>{date.getDate()}</Text>
                       </Pressable>
                     );
@@ -249,7 +289,7 @@ export function DateField({
             )}
             <View style={styles.pickerFooter}>
               {optional ? <PrimaryButton label="清空" tone="plain" onPress={() => { onChangeText(''); setOpen(false); }} /> : null}
-              <PrimaryButton label={mode === 'month' ? '本月' : '今天'} tone="plain" onPress={() => chooseDate(new Date())} />
+              <PrimaryButton label={mode === 'year' ? '今年' : mode === 'month' ? '本月' : mode === 'week' ? '本周' : '今天'} tone="plain" onPress={() => chooseDate(new Date())} />
             </View>
           </Pressable>
         </Pressable>

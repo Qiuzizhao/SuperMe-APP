@@ -597,6 +597,14 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
     }
     setModalOpen(true);
   };
+  const remove = async () => {
+    if (!editing) return;
+    confirmRemove(editing.name, async () => {
+      await apiRequest(`/finances/subscriptions/${editing.id}`, { method: 'DELETE' });
+      setModalOpen(false);
+      await load();
+    });
+  };
 
   return (
     <ScreenShell title="订阅" subtitle={`每月订阅总额 ${money(monthlyTotal)}`} onBack={onBack}>
@@ -604,24 +612,21 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
         <PrimaryButton label="新增订阅" icon="add" onPress={() => openForm()} />
         <StateView loading={loading} error={error} onRetry={load} />
         {items.map((item) => (
-          <SectionCard key={item.id}>
-            <View style={styles.rowTop}>
-              <View style={styles.flex}>
-                <View style={styles.rowWrap}>
-                  <Text style={styles.itemTitle}>{item.name}</Text>
-                  <Tag label={item.is_active ? '已启用' : '已停用'} tone={item.is_active ? 'green' : 'gray'} />
-                  {item.category ? <Tag label={item.category} tone="blue" /> : null}
+          <Pressable key={item.id} onLongPress={() => openForm(item)}>
+            <SectionCard>
+              <View style={styles.rowTop}>
+                <View style={styles.flex}>
+                  <View style={styles.rowWrap}>
+                    <Text style={styles.itemTitle}>{item.name}</Text>
+                    <Tag label={item.is_active ? '已启用' : '已停用'} tone={item.is_active ? 'green' : 'gray'} />
+                    {item.category ? <Tag label={item.category} tone="blue" /> : null}
+                  </View>
+                  <Text style={styles.metaText}>{money(item.amount)} / {cycles.find((cycle) => cycle.value === item.cycle)?.label || item.cycle} · 下次扣费 {item.next_billing_date}</Text>
+                  {item.notes ? <Text style={styles.bodyText}>{item.notes}</Text> : null}
                 </View>
-                <Text style={styles.metaText}>{money(item.amount)} / {cycles.find((cycle) => cycle.value === item.cycle)?.label || item.cycle} · 下次扣费 {item.next_billing_date}</Text>
-                {item.notes ? <Text style={styles.bodyText}>{item.notes}</Text> : null}
               </View>
-              <View style={styles.iconColumn}>
-                <IconButton name={item.is_active ? 'pause-outline' : 'play-outline'} label="切换启用" onPress={async () => { await apiRequest(`/finances/subscriptions/${item.id}`, { method: 'PUT', body: { is_active: !item.is_active } }); await load(); }} />
-                <IconButton name="create-outline" label="编辑" onPress={() => openForm(item)} />
-                <DeleteButton onPress={() => confirmRemove(item.name, async () => { await apiRequest(`/finances/subscriptions/${item.id}`, { method: 'DELETE' }); await load(); })} />
-              </View>
-            </View>
-          </SectionCard>
+            </SectionCard>
+          </Pressable>
         ))}
       </ScrollView>
       <Modal animationType="slide" visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
@@ -639,6 +644,7 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
             <Field label="备注" value={form.notes} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
             <View style={styles.formActions}>
               <PrimaryButton label={editing ? '保存修改' : '新增订阅'} icon="save-outline" disabled={!form.name.trim() || Number(form.amount) <= 0} onPress={() => void save()} />
+              {editing ? <PrimaryButton label="删除订阅" icon="trash-outline" tone="danger" onPress={remove} /> : null}
             </View>
           </ScrollView>
         </Screen>
