@@ -194,7 +194,7 @@ export const financeModules: ModuleConfig[] = [
   },
   {
     key: 'guiwu',
-    title: '资产归物',
+    title: '归物',
     subtitle: '物品、成本和使用寿命',
     endpoint: '/guiwu/',
     titleField: 'name',

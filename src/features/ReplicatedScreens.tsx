@@ -695,7 +695,7 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <ScreenShell title="资产归物" subtitle="掌控个人资产和每日持有成本" onBack={onBack}>
+    <ScreenShell title="归物" subtitle="掌控个人资产和每日持有成本" onBack={onBack}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <PrimaryButton label="录入新资产" icon="add" onPress={() => open()} />
         <View style={styles.statsGrid}>
