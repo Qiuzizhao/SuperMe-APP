@@ -61,7 +61,7 @@ const extendedFinanceModules = [
   ...financeModules,
   {
     key: 'finance_report',
-    title: '财务报表',
+    title: '报表',
     subtitle: '收支占比与趋势',
     endpoint: '',
     fields: [],
@@ -661,7 +661,7 @@ function FinanceReportScreen({ onBack }: { onBack: () => void }) {
   if (loading || error) {
     return (
       <Screen>
-        <Header title="财务报表" action={<IconButton name="chevron-back" label="返回模块列表" soft onPress={onBack} />} />
+        <Header title="报表" action={<IconButton name="chevron-back" label="返回模块列表" soft onPress={onBack} />} />
         <StateView loading={loading} error={error} onRetry={loadFinances} />
       </Screen>
     );
@@ -670,7 +670,7 @@ function FinanceReportScreen({ onBack }: { onBack: () => void }) {
   return (
     <Screen>
       <Header
-        title="财务报表"
+        title="报表"
         subtitle="收支占比与趋势分析"
         action={<IconButton name="chevron-back" label="返回模块列表" soft onPress={onBack} />}
       />
@@ -805,13 +805,16 @@ function FinanceReport({
     datasets: [{ data: trendData.slice(-8).map((item: any) => Number(item.value || 0)) }],
   } : { labels: ['无数据'], datasets: [{ data: [0] }] };
 
-  const pieData = categoryData.map((item: any) => ({
-    name: item.name,
-    population: item.value,
-    color: getTagHexColor(item.name),
-    legendFontColor: '#6B7280',
-    legendFontSize: 12,
-  }));
+  const pieData = categoryData.map((item: any) => {
+    const percent = filteredTotalAmount > 0 ? (item.value / filteredTotalAmount) * 100 : 0;
+    return {
+      name: `${item.name} ${percent.toFixed(1)}%`,
+      population: item.value,
+      color: getTagHexColor(item.name),
+      legendFontColor: '#6B7280',
+      legendFontSize: 12,
+    };
+  });
 
   return (
     <View style={styles.reportPanel}>

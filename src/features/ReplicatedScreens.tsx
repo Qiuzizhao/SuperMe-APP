@@ -817,7 +817,6 @@ export function WishlistScreen({ onBack }: { onBack: () => void }) {
           <Pressable onPress={() => setActiveTag('all')} style={[styles.pill, activeTag === 'all' && styles.pillSelected]}><Text style={[styles.pillText, activeTag === 'all' && styles.pillTextSelected]}>全部 ({items.length})</Text></Pressable>
           {availableTags.map((tag) => <Pressable key={tag} onPress={() => setActiveTag(tag)} style={[styles.pill, activeTag === tag && styles.pillSelected]}><Text style={[styles.pillText, activeTag === tag && styles.pillTextSelected]}>{tag}</Text></Pressable>)}
         </View>
-        <WishPool items={allItems} />
         <StateView loading={loading} error={error} onRetry={load} />
         {filtered.map((item) => (
           <Pressable key={item.id} onPress={() => select(item)}>
@@ -849,19 +848,6 @@ export function WishlistScreen({ onBack }: { onBack: () => void }) {
         ))}
       </ScrollView>
     </ScreenShell>
-  );
-}
-
-function WishPool({ items }: { items: Item[] }) {
-  return (
-    <SectionCard style={styles.wishPool}>
-      <Text style={styles.sectionTitle}>My Wish Pool</Text>
-      {items.length === 0 ? <Text style={styles.emptyText}>愿望池空空如也</Text> : (
-        <View style={styles.bubbleWrap}>
-          {items.slice(0, 18).map((item) => <View key={item.id} style={[styles.bubble, item.is_fulfilled && styles.bubbleDone]}><Text style={styles.bigEmoji}>{item.category === 'shopping' ? '🛍️' : '✈️'}</Text><Text style={styles.bubbleText} numberOfLines={1}>{item.title}</Text></View>)}
-        </View>
-      )}
-    </SectionCard>
   );
 }
 
@@ -1268,11 +1254,6 @@ const styles = StyleSheet.create({
   checkCircle: { alignItems: 'center', borderColor: colors.faint, borderRadius: 12, borderWidth: 2, height: 24, justifyContent: 'center', width: 24 },
   checkCircleDone: { backgroundColor: colors.primary, borderColor: colors.primary },
   completedText: { color: colors.faint, textDecorationLine: 'line-through' },
-  wishPool: { backgroundColor: '#EEF2FF', minHeight: 190 },
-  bubbleWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  bubble: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: radius.lg, padding: spacing.sm, width: 82 },
-  bubbleDone: { opacity: 0.48 },
-  bubbleText: { color: colors.textSoft, fontSize: 11, fontWeight: '800' },
   footprintImage: { backgroundColor: colors.border, borderRadius: radius.lg, height: 180, marginTop: spacing.md, width: '100%' },
   previewImage: { backgroundColor: colors.border, borderRadius: radius.lg, height: 220, width: '100%' },
   fullImageBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.9)', flex: 1, justifyContent: 'center', padding: spacing.lg },
