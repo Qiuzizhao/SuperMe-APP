@@ -805,6 +805,14 @@ function FinanceReport({
     datasets: [{ data: trendData.slice(-8).map((item: any) => Number(item.value || 0)) }],
   } : { labels: ['无数据'], datasets: [{ data: [0] }] };
 
+  const pieData = categoryData.map((item: any) => ({
+    name: item.name,
+    population: item.value,
+    color: getTagHexColor(item.name),
+    legendFontColor: '#6B7280',
+    legendFontSize: 12,
+  }));
+
   return (
     <View style={styles.reportPanel}>
       <View style={styles.reportHeader}>
@@ -813,7 +821,7 @@ function FinanceReport({
       </View>
       {reportType === 'weekly' ? <TextInput value={reportWeek} onChangeText={setReportWeek} style={styles.fullInput} /> : null}
       {reportType === 'monthly' ? <DateField label="月份" value={reportMonth} onChangeText={setReportMonth} mode="month" /> : null}
-      {reportType === 'yearly' ? <TextInput value={reportYear} onChangeText={setReportYear} style={styles.fullInput} /> : null}
+      {reportType === 'yearly' ? <TextInput value={reportYear} onChangeText={setReportYear} style={styles.fullInput} keyboardType="numeric" /> : null}
       {reportType === 'custom' ? (
         <View style={styles.amountRow}>
           <View style={styles.formColumn}>
@@ -831,32 +839,77 @@ function FinanceReport({
       </View>
 
       <SegmentedControl value={chartType} onChange={setChartType} options={[{ label: '占比', value: 'proportion' }, { label: '趋势', value: 'trend' }]} />
+      
+      {chartType === 'proportion' && (
+        <SegmentedControl value={proportionType} onChange={setProportionType} options={[{ label: '饼图', value: 'pie' }, { label: '列表', value: 'list' }]} />
+      )}
+      {chartType === 'trend' && (
+        <SegmentedControl value={trendType} onChange={setTrendType} options={[{ label: '折线图', value: 'line' }, { label: '柱状图', value: 'bar' }]} />
+      )}
+
       {activeTab === 'expense' && chartType === 'proportion' ? (
         <SegmentedControl value={expenseChartLevel} onChange={setExpenseChartLevel} options={[{ label: '账单', value: 'bill' }, { label: '类别', value: 'category' }, { label: '子类别', value: 'subcategory' }]} />
       ) : null}
 
       {chartType === 'trend' ? (
         <View style={styles.chartContainerCompact}>
-          <LineChart
-            data={chartDataset}
-            width={screenWidth - spacing.lg * 4}
-            height={190}
-            chartConfig={{
-              backgroundColor: '#ffffff',
-              backgroundGradientFrom: '#ffffff',
-              backgroundGradientTo: '#ffffff',
-              decimalPlaces: 0,
-              color: (opacity = 1) => activeTab === 'expense' ? `rgba(220, 38, 38, ${opacity})` : `rgba(5, 150, 105, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-              propsForDots: { r: '3' },
-            }}
-            bezier
-            style={styles.chartStyle}
-            formatYLabel={(value) => Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(1)}k` : String(Number(value).toFixed(0))}
-          />
+          {trendType === 'line' ? (
+            <LineChart
+              data={chartDataset}
+              width={screenWidth - spacing.lg * 4}
+              height={190}
+              chartConfig={{
+                backgroundColor: '#ffffff',
+                backgroundGradientFrom: '#ffffff',
+                backgroundGradientTo: '#ffffff',
+                decimalPlaces: 0,
+                color: (opacity = 1) => activeTab === 'expense' ? `rgba(220, 38, 38, ${opacity})` : `rgba(5, 150, 105, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                propsForDots: { r: '3' },
+              }}
+              bezier
+              style={styles.chartStyle}
+              formatYLabel={(value) => Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(1)}k` : String(Number(value).toFixed(0))}
+            />
+          ) : (
+            <BarChart
+              data={chartDataset}
+              width={screenWidth - spacing.lg * 4}
+              height={190}
+              chartConfig={{
+                backgroundColor: '#ffffff',
+                backgroundGradientFrom: '#ffffff',
+                backgroundGradientTo: '#ffffff',
+                decimalPlaces: 0,
+                color: (opacity = 1) => activeTab === 'expense' ? `rgba(220, 38, 38, ${opacity})` : `rgba(5, 150, 105, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+              }}
+              style={styles.chartStyle}
+              yAxisLabel=""
+              yAxisSuffix=""
+              showBarTops={false}
+              fromZero
+            />
+          )}
         </View>
       ) : (
         <View style={styles.breakdownList}>
+          {proportionType === 'pie' && categoryData.length > 0 && (
+            <View style={styles.chartContainerCompact}>
+              <PieChart
+                data={pieData}
+                width={screenWidth - spacing.lg * 4}
+                height={200}
+                chartConfig={{
+                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                }}
+                accessor={"population"}
+                backgroundColor={"transparent"}
+                paddingLeft={"15"}
+                absolute
+              />
+            </View>
+          )}
           {categoryData.length === 0 ? <Text style={styles.emptyBillText}>暂无图表数据</Text> : categoryData.map((item: any) => {
             const percent = filteredTotalAmount > 0 ? item.value / filteredTotalAmount : 0;
             const selected = selectedReportCategory === item.name;

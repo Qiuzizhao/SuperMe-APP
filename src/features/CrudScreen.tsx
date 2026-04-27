@@ -175,9 +175,6 @@ export function CrudScreen({
             </View>
             <Text style={styles.moduleTitle}>{item.title}</Text>
             <Text style={styles.moduleSubtitle} numberOfLines={2}>{item.subtitle}</Text>
-            <View style={styles.moduleFooter}>
-              <Ionicons name="chevron-forward" size={16} color={item.accent} />
-            </View>
           </Pressable>
         )}
       />
