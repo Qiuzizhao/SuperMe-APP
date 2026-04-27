@@ -174,7 +174,6 @@ export function CrudScreen({
               <Ionicons name={item.icon} size={25} color={item.accent} />
             </View>
             <Text style={styles.moduleTitle}>{item.title}</Text>
-            <Text style={styles.moduleSubtitle} numberOfLines={2}>{item.subtitle}</Text>
           </Pressable>
         )}
       />
@@ -500,13 +499,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 18,
     fontWeight: '900',
-    textAlign: 'center',
-  },
-  moduleSubtitle: {
-    color: colors.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: spacing.xs,
     textAlign: 'center',
   },
   pressed: {
