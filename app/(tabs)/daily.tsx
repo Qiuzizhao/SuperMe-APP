@@ -1,5 +1,5 @@
 import { CrudScreen } from '@/src/features/CrudScreen';
-import { MoodScreen, NoteScreen } from '@/src/features/ReplicatedScreens';
+import { MoodScreen, NoteScreen, TeachingScreen, WorkLogScreen } from '@/src/features/ReplicatedScreens';
 import { TodoScreen } from '@/src/features/TodoScreen';
 import { dailyModules } from '@/src/features/moduleConfig';
 
@@ -8,6 +8,8 @@ export default function DailyRoute() {
     if (module.key === 'todos') return <TodoScreen onBack={onBack} />;
     if (module.key === 'moods') return <MoodScreen onBack={onBack} />;
     if (module.key === 'notes') return <NoteScreen onBack={onBack} />;
+    if (module.key === 'worklogs') return <WorkLogScreen onBack={onBack} />;
+    if (module.key === 'teachings') return <TeachingScreen onBack={onBack} />;
     return null;
   };
 
@@ -15,7 +17,7 @@ export default function DailyRoute() {
     <CrudScreen
       modules={dailyModules}
       title="日常"
-      subtitle="待办、心情和随手记"
+      subtitle="待办、心情、笔记与工作记录"
       renderModule={renderDailyModule}
     />
   );

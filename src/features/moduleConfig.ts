@@ -94,9 +94,6 @@ export const dailyModules: ModuleConfig[] = [
       { key: 'parent_id', label: '父级笔记 ID', type: 'number' },
     ],
   },
-];
-
-export const workModules: ModuleConfig[] = [
   {
     key: 'worklogs',
     title: '工作日志',

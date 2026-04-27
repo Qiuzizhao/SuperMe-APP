@@ -909,7 +909,8 @@ function FinanceReport({
                 accessor={"population"}
                 backgroundColor={"transparent"}
                 paddingLeft={"15"}
-                absolute
+                hasLegend={true}
+                absolute={false}
               />
               {proportionType === 'donut' && (
                 <View 

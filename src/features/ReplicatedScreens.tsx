@@ -904,6 +904,14 @@ export function FootprintScreen({ onBack }: { onBack: () => void }) {
     setModalOpen(false);
     await load();
   };
+  const remove = async () => {
+    if (!selected) return;
+    confirmRemove(selected.location, async () => {
+      await apiRequest(`/extras/footprints/${selected.id}`, { method: 'DELETE' });
+      setModalOpen(false);
+      await load();
+    });
+  };
 
   return (
     <ScreenShell title="足迹" subtitle={`${items.length} 个去过的地方`} onBack={onBack}>
@@ -911,26 +919,24 @@ export function FootprintScreen({ onBack }: { onBack: () => void }) {
         <PrimaryButton label="记录足迹" icon="add" onPress={() => open()} />
         <StateView loading={loading} error={error} onRetry={load} />
         {items.map((item) => (
-          <SectionCard key={item.id}>
-            <View style={styles.rowTop}>
-              <View style={styles.flex}>
-                <View style={styles.rowWrap}>
-                  <Text style={styles.itemTitle}>{item.location}</Text>
-                  {item.coordinate ? <Tag label={`📍 ${item.coordinate}`} tone="blue" /> : null}
+          <Pressable key={item.id} onLongPress={() => open(item)}>
+            <SectionCard>
+              <View style={styles.rowTop}>
+                <View style={styles.flex}>
+                  <View style={styles.rowWrap}>
+                    <Text style={styles.itemTitle}>{item.location}</Text>
+                    {item.coordinate ? <Tag label={`📍 ${item.coordinate}`} tone="blue" /> : null}
+                  </View>
+                  <Text style={styles.metaText}>{item.visit_date} · {'⭐'.repeat(Number(item.rating || 0))}</Text>
+                  {item.image_url ? <Pressable onPress={() => setFullImage(buildAssetUrl(item.image_url))}><Image source={{ uri: buildAssetUrl(item.image_url) || '' }} style={styles.footprintImage} /></Pressable> : null}
+                  {item.notes ? <Text style={styles.bodyText}>{item.notes}</Text> : null}
                 </View>
-                <Text style={styles.metaText}>{item.visit_date} · {'⭐'.repeat(Number(item.rating || 0))}</Text>
-                {item.image_url ? <Pressable onPress={() => setFullImage(buildAssetUrl(item.image_url))}><Image source={{ uri: buildAssetUrl(item.image_url) || '' }} style={styles.footprintImage} /></Pressable> : null}
-                {item.notes ? <Text style={styles.bodyText}>{item.notes}</Text> : null}
               </View>
-              <View style={styles.iconColumn}>
-                <IconButton name="create-outline" label="编辑" onPress={() => open(item)} />
-                <DeleteButton onPress={() => confirmRemove(item.location, async () => { await apiRequest(`/extras/footprints/${item.id}`, { method: 'DELETE' }); await load(); })} />
-              </View>
-            </View>
-          </SectionCard>
+            </SectionCard>
+          </Pressable>
         ))}
       </ScrollView>
-      <EditFootprintModal modalOpen={modalOpen} setModalOpen={setModalOpen} selected={selected} form={form} setForm={setForm} uploading={uploading} pickImage={pickImage} save={save} />
+      <EditFootprintModal modalOpen={modalOpen} setModalOpen={setModalOpen} selected={selected} form={form} setForm={setForm} uploading={uploading} pickImage={pickImage} save={save} remove={remove} />
       <Modal visible={!!fullImage} transparent animationType="fade" onRequestClose={() => setFullImage(null)}>
         <Pressable style={styles.fullImageBackdrop} onPress={() => setFullImage(null)}>
           {fullImage ? <Image source={{ uri: fullImage }} style={styles.fullImage} resizeMode="contain" /> : null}
@@ -940,7 +946,7 @@ export function FootprintScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function EditFootprintModal({ modalOpen, setModalOpen, selected, form, setForm, uploading, pickImage, save }: any) {
+function EditFootprintModal({ modalOpen, setModalOpen, selected, form, setForm, uploading, pickImage, save, remove }: any) {
   return (
     <Modal animationType="slide" visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
       <Screen>
@@ -954,6 +960,7 @@ function EditFootprintModal({ modalOpen, setModalOpen, selected, form, setForm, 
           {form.image_url ? <Image source={{ uri: buildAssetUrl(form.image_url) || form.image_url }} style={styles.previewImage} /> : null}
           <PrimaryButton label={uploading ? '上传中' : '选择照片'} icon="image-outline" tone="plain" onPress={pickImage} />
           <PrimaryButton label="保存足迹" icon="checkmark" disabled={!form.location.trim()} onPress={() => void save()} />
+          {selected ? <PrimaryButton label="删除足迹" icon="trash-outline" tone="danger" onPress={remove} /> : null}
         </ScrollView>
       </Screen>
     </Modal>
@@ -983,7 +990,22 @@ export function ReadingScreen({ onBack }: { onBack: () => void }) {
     <ScreenShell title="阅读" subtitle="腹有诗书气自华" onBack={onBack}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <PrimaryButton label="录入新书籍" icon="add" onPress={() => open()} />
-        <View style={styles.statsGrid}><Stat label="总藏书量" value={`${stats.total} 本`} /><Stat label="正在阅读" value={`${stats.reading} 本`} /><Stat label="已读完" value={`${stats.finished} 本`} /></View>
+        <SectionCard style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: spacing.xl }}>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, color: colors.muted, fontWeight: '800', marginBottom: 4 }}>总藏书量</Text>
+            <Text style={{ fontSize: 28, color: colors.text, fontWeight: '900' }}>{stats.total}</Text>
+          </View>
+          <View style={{ width: 1, height: 40, backgroundColor: colors.border, opacity: 0.5 }} />
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '800', marginBottom: 4 }}>正在阅读</Text>
+            <Text style={{ fontSize: 28, color: colors.primary, fontWeight: '900' }}>{stats.reading}</Text>
+          </View>
+          <View style={{ width: 1, height: 40, backgroundColor: colors.border, opacity: 0.5 }} />
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, color: colors.success, fontWeight: '800', marginBottom: 4 }}>已读完</Text>
+            <Text style={{ fontSize: 28, color: colors.success, fontWeight: '900' }}>{stats.finished}</Text>
+          </View>
+        </SectionCard>
         <StateView loading={loading} error={error} onRetry={load} />
         {items.map((item) => (
           <SectionCard key={item.id}>
