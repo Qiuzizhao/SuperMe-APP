@@ -32,6 +32,19 @@ const compactDateTime = (value?: string) => {
   return date.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 const money = (value: unknown) => `￥${Number(value || 0).toFixed(2)}`;
+const safeNoteText = (value: unknown) => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (!value) return '';
+  if (typeof value === 'object' && 'uri' in (value as Record<string, unknown>)) {
+    return String((value as { uri?: unknown }).uri || '');
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
 
 const MOOD_IMAGES = {
   5: require('../../assets/images/emojis/5.png'),
@@ -294,9 +307,9 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
                   <View style={styles.rowTop}>
                     <Text style={styles.metaText}>{compactDateTime(note.created_at)}</Text>
                   </View>
-                  <Text style={styles.bodyText}>{note.content}</Text>
+                  <Text style={styles.bodyText}>{safeNoteText(note.content)}</Text>
                   <View style={styles.tagRow}>
-                    {note.emotion ? <Tag label={`💢 ${note.emotion}`} tone="purple" /> : null}
+                    {safeNoteText(note.emotion) ? <Tag label={`💢 ${safeNoteText(note.emotion)}`} tone="purple" /> : null}
                     {String(note.tags || '').split(',').filter(Boolean).map((tag) => <Tag key={tag} label={`#${tag.trim()}`} tone="blue" />)}
                     {note.parent_id ? <Tag label="追踪节点" tone="orange" /> : null}
                   </View>
@@ -317,7 +330,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
                       <View style={styles.rowTop}>
                         <Text style={styles.metaText}>{compactDateTime(item.created_at)}</Text>
                       </View>
-                      <Text style={styles.bodyText}>{item.content}</Text>
+                      <Text style={styles.bodyText}>{safeNoteText(item.content)}</Text>
                     </SectionCard>
                   </Pressable>
                 ))}
@@ -353,10 +366,10 @@ function NoteModal({ visible, title, onClose, onSubmit, initialData, onDelete }:
 
   useEffect(() => {
     if (visible) {
-      setContent(initialData?.content || '');
+      setContent(safeNoteText(initialData?.content));
       setTags(initialData?.tags ? String(initialData.tags).split(',').filter(Boolean) : []);
       setMood(initialData?.mood_level ? moodByLevel(Number(initialData.mood_level)) : null);
-      setEmotion(initialData?.emotion || '');
+      setEmotion(safeNoteText(initialData?.emotion));
     }
   }, [visible, initialData]);
 
@@ -475,6 +488,13 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
 
 const courseTypes = ['科学', '信息', '课1', '课2', '劳动', '社团', '代课'];
 const ratingLabels: Record<number, string> = { 5: '🌟 极佳', 4: '✨ 良好', 3: '👍 一般', 2: '⚠️ 较差', 1: '🆘 糟糕' };
+const effectRatingOptions = [
+  { value: '5', label: '🌟 极佳' },
+  { value: '4', label: '✨ 良好' },
+  { value: '3', label: '👍 一般' },
+  { value: '2', label: '⚠️ 较差' },
+  { value: '1', label: '🆘 糟糕' },
+];
 
 export function TeachingScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/teachings/');
@@ -548,9 +568,20 @@ export function TeachingScreen({ onBack }: { onBack: () => void }) {
           <Header title="记录课堂日志" action={<IconButton name="close" label="关闭" soft onPress={() => setAdding(false)} />} />
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={styles.modalScroll}>
-              <View style={styles.formRow}>
-                <Field label="授课班级" value={form.class_name} placeholder="例如：高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, class_name: value }))} />
-                <Field label="效果评分" value={form.effect_rating} placeholder="1-5" keyboardType="number-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, effect_rating: value }))} />
+              <Field label="授课班级" value={form.class_name} placeholder="例如：高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, class_name: value }))} />
+              <Text style={styles.formLabel}>效果评分</Text>
+              <View style={styles.pills}>
+                {effectRatingOptions.map((option) => {
+                  const selected = form.effect_rating === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => setForm((cur) => ({ ...cur, effect_rating: option.value }))}
+                      style={[styles.pill, selected && { backgroundColor: '#7E22CE', borderColor: '#7E22CE' }]}>
+                      <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
               <Text style={styles.formLabel}>课程类型</Text>
               <SelectPills value={form.course_type} options={courseTypes} onChange={(value) => setForm((cur) => ({ ...cur, course_type: value }))} accent="#4F46E5" />
@@ -1057,6 +1088,15 @@ export function ReadingScreen({ onBack }: { onBack: () => void }) {
     await load();
   };
 
+  const remove = async () => {
+    if (!editing) return;
+    confirmRemove(editing.title, async () => {
+      await apiRequest(`/extras/readings/${editing.id}`, { method: 'DELETE' });
+      setModalOpen(false);
+      await load();
+    });
+  };
+
   return (
     <ScreenShell title="阅读" subtitle="腹有诗书气自华" onBack={onBack}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
@@ -1079,31 +1119,29 @@ export function ReadingScreen({ onBack }: { onBack: () => void }) {
         </SectionCard>
         <StateView loading={loading} error={error} onRetry={load} />
         {items.map((item) => (
-          <SectionCard key={item.id}>
-            <View style={styles.rowTop}>
-              <View style={styles.flex}>
-                <Text style={styles.itemTitle}>{item.title}</Text>
-                <Text style={styles.metaText}>{item.author || '未知作者'}</Text>
-                <View style={styles.tagRow}>
-                  <Tag label={readingStatus[item.status as keyof typeof readingStatus] || item.status} tone={item.status === 'finished' ? 'green' : item.status === 'reading' ? 'blue' : 'orange'} />
-                  {item.status === 'finished' && item.rating ? <Tag label={'★'.repeat(Number(item.rating)) + '☆'.repeat(5 - Number(item.rating))} tone="orange" /> : null}
+          <Pressable key={item.id} onLongPress={() => open(item)}>
+            <SectionCard>
+              <View style={styles.rowTop}>
+                <View style={styles.flex}>
+                  <Text style={styles.itemTitle}>{item.title}</Text>
+                  <Text style={styles.metaText}>{item.author || '未知作者'}</Text>
+                  <View style={styles.tagRow}>
+                    <Tag label={readingStatus[item.status as keyof typeof readingStatus] || item.status} tone={item.status === 'finished' ? 'green' : item.status === 'reading' ? 'blue' : 'orange'} />
+                    {item.status === 'finished' && item.rating ? <Tag label={'★'.repeat(Number(item.rating)) + '☆'.repeat(5 - Number(item.rating))} tone="orange" /> : null}
+                  </View>
+                  {item.notes ? <Text style={styles.bodyText}>{item.notes}</Text> : null}
                 </View>
-                {item.notes ? <Text style={styles.bodyText}>{item.notes}</Text> : null}
               </View>
-              <View style={styles.iconColumn}>
-                <IconButton name="create-outline" label="编辑" onPress={() => open(item)} />
-                <DeleteButton onPress={() => confirmRemove(item.title, async () => { await apiRequest(`/extras/readings/${item.id}`, { method: 'DELETE' }); await load(); })} />
-              </View>
-            </View>
-          </SectionCard>
+            </SectionCard>
+          </Pressable>
         ))}
       </ScrollView>
-      <ReadingModal visible={modalOpen} onClose={() => setModalOpen(false)} editing={editing} form={form} setForm={setForm} save={save} />
+      <ReadingModal visible={modalOpen} onClose={() => setModalOpen(false)} editing={editing} form={form} setForm={setForm} save={save} remove={remove} />
     </ScreenShell>
   );
 }
 
-function ReadingModal({ visible, onClose, editing, form, setForm, save }: any) {
+function ReadingModal({ visible, onClose, editing, form, setForm, save, remove }: any) {
   return (
     <Modal animationType="slide" visible={visible} onRequestClose={onClose}>
       <Screen>
@@ -1114,7 +1152,10 @@ function ReadingModal({ visible, onClose, editing, form, setForm, save }: any) {
           <SegmentedControl value={form.status} onChange={(value) => setForm((cur: any) => ({ ...cur, status: value }))} options={Object.entries(readingStatus).map(([value, label]) => ({ value, label }))} />
           {form.status === 'finished' ? <SegmentedControl value={form.rating} onChange={(value) => setForm((cur: any) => ({ ...cur, rating: value }))} options={[1, 2, 3, 4, 5].map((value) => ({ label: `${value}星`, value: String(value) }))} /> : null}
           <Field label="笔记" value={form.notes} multiline onChangeText={(value) => setForm((cur: any) => ({ ...cur, notes: value }))} />
-          <PrimaryButton label={editing ? '保存修改' : '确认录入'} icon="checkmark" disabled={!form.title.trim()} onPress={() => void save()} />
+          <View style={styles.formActions}>
+            {editing ? <PrimaryButton label="删除书籍" icon="trash-outline" tone="danger" onPress={remove} /> : null}
+            <PrimaryButton label={editing ? '保存修改' : '确认录入'} icon="checkmark" disabled={!form.title.trim()} onPress={() => void save()} />
+          </View>
         </ScrollView>
       </Screen>
     </Modal>
@@ -1155,6 +1196,7 @@ const styles = StyleSheet.create({
   staff: { height: 220, position: 'relative' },
   staffLine: { backgroundColor: '#DDD6FE', height: 1, marginTop: 34, opacity: 0.8 },
   staffPoint: { alignItems: 'center', position: 'absolute', width: 42, gap: 4 },
+  staffEmoji: { fontSize: 24 },
   staffEmojiImage: { width: 24, height: 24 },
   staffTime: { color: colors.faint, fontSize: 9, textAlign: 'center' },
   moodPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center' },
