@@ -1,6 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Alert, Platform, RefreshControl, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Dimensions, Modal } from 'react-native';
 import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
+import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
 import { DateField, Header, IconButton, PrimaryButton, Screen, SegmentedControl, StateView } from '@/src/components/ui';
 import { apiRequest } from '@/src/lib/api';
@@ -181,6 +184,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
   const [editTransactionDate, setEditTransactionDate] = useState(todayDate());
   const [editBelongMonth, setEditBelongMonth] = useState(currentMonthValue());
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [reportType, setReportType] = useState('monthly');
   const [expenseChartLevel, setExpenseChartLevel] = useState('category');
   const [chartType, setChartType] = useState('proportion');
@@ -284,7 +288,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
     if (activeTab === 'income') setIncomeCategory('');
     setTransactionDate(todayDate());
     setBelongMonth(currentMonthValue());
-    setAddModalOpen(false);
+    bottomSheetRef.current?.dismiss();
     await loadFinances();
   };
 
@@ -425,14 +429,24 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadFinances(); }} />}>
         <SegmentedControl value={activeTab} onChange={(value) => setActiveTab(value as 'expense' | 'income')} options={[{ label: '支出清单', value: 'expense' }, { label: '收入清单', value: 'income' }]} />
 
-        <PrimaryButton label={`新增${activeTab === 'expense' ? '支出' : '收入'}`} icon="add" onPress={() => setAddModalOpen(true)} />
-
-        <View style={styles.billSummaryRow}>
-          <View style={styles.billSummaryCard}>
-            <Text style={styles.billSummaryLabel}>总支出 / 总收入</Text>
-            <Text style={[styles.billSummaryValue, { color: activeTab === 'expense' ? colors.danger : colors.success }]}>{activeTab === 'expense' ? '-' : '+'}{formatCurrency(totalAmount)}</Text>
+        <LinearGradient
+          colors={activeTab === 'expense' ? ['#f43f5e', '#be123c'] : ['#10b981', '#047857']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.creditCard}
+        >
+          <View style={styles.creditCardTop}>
+            <Text style={styles.creditCardLabel}>本期总{activeTab === 'expense' ? '支出' : '收入'}</Text>
+            <Ionicons name="card-outline" size={24} color="rgba(255,255,255,0.5)" />
           </View>
-        </View>
+          <Text style={styles.creditCardAmount}>
+            {activeTab === 'expense' ? '-' : '+'}{formatCurrency(totalAmount)}
+          </Text>
+          <View style={styles.creditCardBottom}>
+            <Text style={styles.creditCardDate}>{new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}</Text>
+            <Text style={styles.creditCardBrand}>SUPERME FINANCE</Text>
+          </View>
+        </LinearGradient>
 
         <View style={styles.billList}>
           {displayFinances.length === 0 ? (
@@ -441,98 +455,130 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
               <Text style={styles.emptyBillText}>暂无账单记录</Text>
             </View>
           ) : (
-            displayFinances.map((item) => {
-              const isEditing = editingId === item.id;
-              return (
-                <Pressable key={item.id} style={styles.billCard} onLongPress={() => startEdit(item)}>
-                  <View style={styles.billCardHeader}>
-                    <View style={styles.flex}>
-                      <View style={styles.billCardTitleRow}>
-                        <Text style={[styles.billAmount, { color: activeTab === 'expense' ? colors.danger : colors.success }]}>{activeTab === 'expense' ? '-' : '+'}{formatCurrency(item.amount)}</Text>
-                        <Text style={styles.billDate}>{item.transaction_date}</Text>
-                      </View>
-                      <Text style={styles.billCategory}>{[item.bill, item.category, item.subcategory].filter(Boolean).join(' / ') || '未分类'}</Text>
-                      {item.description ? <Text style={styles.billDescription}>{item.description}</Text> : null}
-                      {activeTab === 'income' && item.belong_month ? <Text style={styles.billDescription}>归属月份：{item.belong_month}</Text> : null}
-                    </View>
-                  </View>
-                  {isEditing ? (
-                    <View style={styles.editPanel}>
-                      <View style={styles.amountRow}>
-                        <TextInput value={editAmount} onChangeText={setEditAmount} onBlur={() => setEditAmount((current) => evaluateAmountExpression(current))} style={styles.amountInput} />
-                        <View style={styles.dateColumn}>
-                          <DateField label="日期" value={editTransactionDate} onChangeText={setEditTransactionDate} />
+            Object.entries(
+              displayFinances.reduce<Record<string, FinanceItem[]>>((groups, item) => {
+                const dateKey = item.transaction_date || '未知日期';
+                if (!groups[dateKey]) groups[dateKey] = [];
+                groups[dateKey].push(item);
+                return groups;
+              }, {})
+            )
+              .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+              .map(([date, items]) => (
+                <View key={date} style={styles.billGroup}>
+                  <Text style={styles.billGroupTitle}>{date}</Text>
+                  {items.map((item) => {
+                    const isEditing = editingId === item.id;
+                    return (
+                      <Pressable key={item.id} style={styles.billCard} onLongPress={() => startEdit(item)}>
+                        <View style={styles.billCardHeader}>
+                          <View style={[styles.billIconCircle, { backgroundColor: activeTab === 'expense' ? '#ffe4e6' : '#d1fae5' }]}>
+                            <Text style={styles.billIconEmoji}>{activeTab === 'expense' ? '💸' : '💰'}</Text>
+                          </View>
+                          <View style={styles.flex}>
+                            <View style={styles.billCardTitleRow}>
+                              <Text style={styles.billCategory}>{[item.bill, item.category, item.subcategory].filter(Boolean).join(' / ') || '未分类'}</Text>
+                              <View style={styles.flex} />
+                              <Text style={[styles.billAmount, { color: activeTab === 'expense' ? colors.danger : colors.success }]}>{activeTab === 'expense' ? '-' : '+'}{formatCurrency(item.amount)}</Text>
+                            </View>
+                            {item.description ? <Text style={styles.billDescription}>{item.description}</Text> : null}
+                            {activeTab === 'income' && item.belong_month ? <Text style={styles.billDescription}>归属月份：{item.belong_month}</Text> : null}
+                          </View>
                         </View>
-                      </View>
-                      {activeTab === 'income' ? (
-                        <>
-                          <DateField label="归属月份" value={editBelongMonth} onChangeText={setEditBelongMonth} mode="month" />
-                          <PillSelector label="收入类别" value={editIncomeCategory} options={incomeCategories} onChange={setEditIncomeCategory} fallback="其他收入" accent={colors.success} />
-                        </>
-                      ) : (
-                        <>
-                          <PillSelector label="账本" value={editBillObj?.name || ''} options={expenseTree.map((bill) => bill.name)} onChange={(name) => { const found = expenseTree.find((bill) => bill.name === name) || null; setEditBillObj(found); setEditCategoryObj(null); setEditSubcategoryObj(null); }} fallback="未选择账本" accent={colors.danger} />
-                          <PillSelector label="类别" value={editCategoryObj?.name || ''} options={editCategories.map((category) => category.name)} onChange={(name) => { const found = editCategories.find((category) => category.name === name) || null; setEditCategoryObj(found); setEditSubcategoryObj(null); }} fallback="其他支出" accent={colors.danger} />
-                          {editSubcategories.length > 0 ? <PillSelector label="子类别" value={editSubcategoryObj?.name || ''} options={editSubcategories.map((subcategory) => subcategory.name)} onChange={(name) => setEditSubcategoryObj(editSubcategories.find((subcategory) => subcategory.name === name) || null)} fallback="无子类别" accent={colors.danger} /> : null}
-                        </>
-                      )}
-                      <TextInput value={editDescription} onChangeText={setEditDescription} placeholder="备注说明" placeholderTextColor={colors.faint} style={styles.fullInput} />
-                      <View style={styles.editActions}>
-                        <PrimaryButton label="删除" tone="danger" onPress={() => removeFinance(item)} />
-                        <View style={{flex: 1}} />
-                        <PrimaryButton label="取消" tone="plain" onPress={() => setEditingId(null)} />
-                        <PrimaryButton label="保存修改" icon="checkmark" onPress={() => void updateFinance(item.id)} />
-                      </View>
-                    </View>
-                  ) : null}
-                </Pressable>
-              );
-            })
+                        {isEditing ? (
+                          <View style={styles.editPanel}>
+                            <View style={styles.amountRow}>
+                              <TextInput value={editAmount} onChangeText={setEditAmount} onBlur={() => setEditAmount((current) => evaluateAmountExpression(current))} style={styles.amountInput} />
+                              <View style={styles.dateColumn}>
+                                <DateField label="日期" value={editTransactionDate} onChangeText={setEditTransactionDate} />
+                              </View>
+                            </View>
+                            {activeTab === 'income' ? (
+                              <>
+                                <DateField label="归属月份" value={editBelongMonth} onChangeText={setEditBelongMonth} mode="month" />
+                                <PillSelector label="收入类别" value={editIncomeCategory} options={incomeCategories} onChange={setEditIncomeCategory} fallback="其他收入" accent={colors.success} />
+                              </>
+                            ) : (
+                              <>
+                                <PillSelector label="账本" value={editBillObj?.name || ''} options={expenseTree.map((bill) => bill.name)} onChange={(name) => { const found = expenseTree.find((bill) => bill.name === name) || null; setEditBillObj(found); setEditCategoryObj(null); setEditSubcategoryObj(null); }} fallback="未选择账本" accent={colors.danger} />
+                                <PillSelector label="类别" value={editCategoryObj?.name || ''} options={editCategories.map((category) => category.name)} onChange={(name) => { const found = editCategories.find((category) => category.name === name) || null; setEditCategoryObj(found); setEditSubcategoryObj(null); }} fallback="其他支出" accent={colors.danger} />
+                                {editSubcategories.length > 0 ? <PillSelector label="子类别" value={editSubcategoryObj?.name || ''} options={editSubcategories.map((subcategory) => subcategory.name)} onChange={(name) => setEditSubcategoryObj(editSubcategories.find((subcategory) => subcategory.name === name) || null)} fallback="无子类别" accent={colors.danger} /> : null}
+                              </>
+                            )}
+                            <TextInput value={editDescription} onChangeText={setEditDescription} placeholder="备注说明" placeholderTextColor={colors.faint} style={styles.fullInput} />
+                            <View style={styles.editActions}>
+                              <PrimaryButton label="删除" tone="danger" onPress={() => removeFinance(item)} />
+                              <View style={{flex: 1}} />
+                              <PrimaryButton label="取消" tone="plain" onPress={() => setEditingId(null)} />
+                              <PrimaryButton label="保存修改" icon="checkmark" onPress={() => void updateFinance(item.id)} />
+                            </View>
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))
           )}
         </View>
       </ScrollView>
-      <Modal animationType="slide" visible={addModalOpen} onRequestClose={() => setAddModalOpen(false)}>
-        <Screen>
-          <Header title={`新增${activeTab === 'expense' ? '支出' : '收入'}`} action={<IconButton name="close" label="关闭" soft onPress={() => setAddModalOpen(false)} />} />
-          <ScrollView contentContainerStyle={styles.financeContent}>
-            <View style={styles.amountRow}>
-              <TextInput
-                value={amount}
-                onChangeText={setAmount}
-                onBlur={() => setAmount((current) => evaluateAmountExpression(current))}
-                placeholder="金额，可输入 12+8/2"
-                placeholderTextColor={colors.faint}
-                keyboardType="numbers-and-punctuation"
-                style={styles.amountInput}
-              />
-              <View style={styles.dateColumn}>
-                <DateField label="日期" value={transactionDate} onChangeText={setTransactionDate} />
-              </View>
+      
+      <Pressable style={styles.fab} onPress={() => bottomSheetRef.current?.present()}>
+        <LinearGradient
+          colors={activeTab === 'expense' ? ['#f43f5e', '#be123c'] : ['#10b981', '#047857']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </Pressable>
+
+      <BottomSheetModal
+        ref={bottomSheetRef}
+        snapPoints={['85%']}
+        index={0}
+        backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+        backgroundStyle={styles.bottomSheetBg}
+        handleIndicatorStyle={styles.bottomSheetIndicator}
+      >
+        <BottomSheetScrollView contentContainerStyle={styles.financeContent}>
+          <Text style={styles.sheetTitle}>新增{activeTab === 'expense' ? '支出' : '收入'}</Text>
+          <View style={styles.amountRow}>
+            <TextInput
+              value={amount}
+              onChangeText={setAmount}
+              onBlur={() => setAmount((current) => evaluateAmountExpression(current))}
+              placeholder="金额，可输入 12+8/2"
+              placeholderTextColor={colors.faint}
+              keyboardType="numbers-and-punctuation"
+              style={styles.amountInput}
+            />
+            <View style={styles.dateColumn}>
+              <DateField label="日期" value={transactionDate} onChangeText={setTransactionDate} />
             </View>
-            {activeTab === 'income' ? (
-              <>
-                <DateField label="归属月份" value={belongMonth} onChangeText={setBelongMonth} mode="month" />
-                <PillSelector
-                  label="收入类别"
-                  value={incomeCategory}
-                  options={incomeCategories}
-                  onChange={setIncomeCategory}
-                  fallback="其他收入"
-                  accent={colors.success}
-                />
-              </>
-            ) : (
-              <>
-                <PillSelector label="账本" value={billObj?.name || ''} options={expenseTree.map((bill) => bill.name)} onChange={(name) => { const found = expenseTree.find((bill) => bill.name === name) || null; setBillObj(found); setCategoryObj(null); setSubcategoryObj(null); }} fallback="未选择账本" accent={colors.danger} />
-                <PillSelector label="类别" value={categoryObj?.name || ''} options={categories.map((category) => category.name)} onChange={(name) => { const found = categories.find((category) => category.name === name) || null; setCategoryObj(found); setSubcategoryObj(null); }} fallback="其他支出" accent={colors.danger} />
-                {subcategories.length > 0 ? <PillSelector label="子类别" value={subcategoryObj?.name || ''} options={subcategories.map((subcategory) => subcategory.name)} onChange={(name) => setSubcategoryObj(subcategories.find((subcategory) => subcategory.name === name) || null)} fallback="无子类别" accent={colors.danger} /> : null}
-              </>
-            )}
-            <TextInput value={description} onChangeText={setDescription} placeholder="备注说明" placeholderTextColor={colors.faint} style={styles.fullInput} />
-            <PrimaryButton label="添加账单" icon="checkmark" disabled={!amount.trim()} onPress={() => void addFinance()} />
-          </ScrollView>
-        </Screen>
-      </Modal>
+          </View>
+          {activeTab === 'income' ? (
+            <>
+              <DateField label="归属月份" value={belongMonth} onChangeText={setBelongMonth} mode="month" />
+              <PillSelector
+                label="收入类别"
+                value={incomeCategory}
+                options={incomeCategories}
+                onChange={setIncomeCategory}
+                fallback="其他收入"
+                accent={colors.success}
+              />
+            </>
+          ) : (
+            <>
+              <PillSelector label="账本" value={billObj?.name || ''} options={expenseTree.map((bill) => bill.name)} onChange={(name) => { const found = expenseTree.find((bill) => bill.name === name) || null; setBillObj(found); setCategoryObj(null); setSubcategoryObj(null); }} fallback="未选择账本" accent={colors.danger} />
+              <PillSelector label="类别" value={categoryObj?.name || ''} options={categories.map((category) => category.name)} onChange={(name) => { const found = categories.find((category) => category.name === name) || null; setCategoryObj(found); setSubcategoryObj(null); }} fallback="其他支出" accent={colors.danger} />
+              {subcategories.length > 0 ? <PillSelector label="子类别" value={subcategoryObj?.name || ''} options={subcategories.map((subcategory) => subcategory.name)} onChange={(name) => setSubcategoryObj(subcategories.find((subcategory) => subcategory.name === name) || null)} fallback="无子类别" accent={colors.danger} /> : null}
+            </>
+          )}
+          <TextInput value={description} onChangeText={setDescription} placeholder="备注说明" placeholderTextColor={colors.faint} style={styles.fullInput} />
+          <PrimaryButton label="添加账单" icon="checkmark" disabled={!amount.trim()} onPress={() => void addFinance()} />
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </Screen>
   );
 }
@@ -873,6 +919,10 @@ function FinanceReport({
                 backgroundColor: '#ffffff',
                 backgroundGradientFrom: '#ffffff',
                 backgroundGradientTo: '#ffffff',
+                fillShadowGradientFrom: activeTab === 'expense' ? '#f43f5e' : '#10b981',
+                fillShadowGradientFromOpacity: 0.4,
+                fillShadowGradientTo: '#ffffff',
+                fillShadowGradientToOpacity: 0.1,
                 decimalPlaces: 0,
                 color: (opacity = 1) => activeTab === 'expense' ? `rgba(220, 38, 38, ${opacity})` : `rgba(5, 150, 105, ${opacity})`,
                 labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
@@ -1400,6 +1450,10 @@ function IncomeAnalysis({ onBack }: { onBack: () => void }) {
             backgroundColor: '#ffffff',
             backgroundGradientFrom: '#ffffff',
             backgroundGradientTo: '#ffffff',
+            fillShadowGradientFrom: filterCategory ? getTagHexColor(filterCategory) : '#2563eb',
+            fillShadowGradientFromOpacity: 0.4,
+            fillShadowGradientTo: '#ffffff',
+            fillShadowGradientToOpacity: 0.1,
             decimalPlaces: 0,
             color: (opacity = 1) => filterCategory ? getTagHexColor(filterCategory) : `rgba(37, 99, 235, ${opacity})`,
             labelColor: (opacity = 1) => `rgba(156, 163, 175, ${opacity})`,
@@ -1725,6 +1779,76 @@ const styles = StyleSheet.create({
   financePillTextSelected: {
     color: '#fff',
   },
+  creditCard: {
+    borderRadius: 24,
+    padding: spacing.xl,
+    gap: spacing.lg,
+    ...shadow,
+    elevation: 8,
+  },
+  creditCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  creditCardLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  creditCardAmount: {
+    color: '#ffffff',
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  creditCardBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginTop: spacing.sm,
+  },
+  creditCardDate: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  creditCardBrand: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 14,
+    fontWeight: '900',
+    fontStyle: 'italic',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 32,
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    ...shadow,
+    elevation: 8,
+  },
+  fabGradient: {
+    flex: 1,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bottomSheetBg: {
+    backgroundColor: colors.bg,
+    borderRadius: 24,
+  },
+  bottomSheetIndicator: {
+    backgroundColor: colors.border,
+    width: 48,
+  },
+  sheetTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
   billSummaryRow: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -1828,24 +1952,56 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   billList: {
-    gap: spacing.md,
+    gap: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  billGroup: {
+    gap: spacing.sm,
+    paddingLeft: spacing.md,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+    marginLeft: spacing.sm,
+    position: 'relative',
+  },
+  billGroupTitle: {
+    color: colors.textSoft,
+    fontSize: 13,
+    fontWeight: '800',
+    paddingHorizontal: spacing.sm,
+    marginLeft: -spacing.md - 8,
+    backgroundColor: colors.bg,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   billCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
+    borderRadius: 20,
     overflow: 'hidden',
     padding: spacing.lg,
-    ...shadow,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
   billCardHeader: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
+  },
+  billIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  billIconEmoji: {
+    fontSize: 20,
   },
   billCardTitleRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
   billAmount: {
@@ -1861,7 +2017,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: '800',
-    marginTop: spacing.xs,
+    flexShrink: 1,
   },
   billDescription: {
     color: colors.muted,

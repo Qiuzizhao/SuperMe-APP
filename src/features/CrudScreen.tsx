@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { Card, DateField, Field, Header, IconButton, PrimaryButton, Screen, SegmentedControl, StateView } from '@/src/components/ui';
 import { apiRequest, buildAssetUrl, uploadImage } from '@/src/lib/api';
@@ -104,6 +105,16 @@ function itemMeta(config: ModuleConfig, item: RecordItem) {
     .join('  ·  ');
 }
 
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 6) return '🌙 夜深了，早点休息';
+  if (hour < 10) return '☀️ 早上好，今天也要元气满满';
+  if (hour < 14) return '🍲 中午好，记得好好吃饭';
+  if (hour < 18) return '☕ 下午好，喝杯咖啡休息下吧';
+  if (hour < 22) return '🌆 晚上好，今天辛苦啦';
+  return '🌙 夜深了，早点休息';
+};
+
 export function CrudScreen({
   modules,
   initialModuleKey,
@@ -158,25 +169,44 @@ export function CrudScreen({
 
   return (
     <Screen>
-      <Header title={title} subtitle={subtitle} />
-      <FlatList
-        key="module-grid-two-columns"
-        data={moduleTiles}
-        keyExtractor={(item) => item.key}
-        contentContainerStyle={styles.moduleGrid}
-        columnWrapperStyle={styles.moduleRow}
-        numColumns={2}
-        renderItem={({ item }) => item.placeholder ? (
-          <View style={[styles.moduleCard, styles.modulePlaceholder]} />
-        ) : (
-          <Pressable onPress={() => handleSetActiveKey(item.key)} style={({ pressed }) => [styles.moduleCard, pressed && styles.pressed]}>
-            <View style={[styles.moduleIcon, { backgroundColor: `${item.accent}1F` }]}>
-              <Ionicons name={item.icon} size={28} color={item.accent} />
-            </View>
-            <Text style={styles.moduleTitle}>{item.title}</Text>
-          </Pressable>
-        )}
-      />
+      <ScrollView contentContainerStyle={styles.bentoContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.heroSection}>
+          <Text style={styles.heroGreeting}>{title === '日常' ? getGreeting() : title}</Text>
+          <Text style={styles.heroDate}>{subtitle}</Text>
+        </View>
+        <View style={styles.bentoGrid}>
+          {modules.map((item) => {
+            const isLarge = item.key === 'todos' || item.key === 'finances';
+            return (
+              <Pressable
+                key={item.key}
+                onPress={() => handleSetActiveKey(item.key)}
+                style={({ pressed }) => [
+                  styles.bentoCard,
+                  isLarge && styles.bentoCardLarge,
+                  pressed && styles.pressed
+                ]}
+              >
+                <LinearGradient
+                  colors={[`${item.accent}25`, `${item.accent}05`]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View style={styles.bentoContent}>
+                  <View style={[styles.bentoIconWrapper, { backgroundColor: `${item.accent}35` }]}>
+                    <Ionicons name={item.icon} size={isLarge ? 32 : 26} color={item.accent} />
+                  </View>
+                  <View style={styles.bentoTextWrapper}>
+                    <Text style={[styles.bentoTitle, isLarge && styles.bentoTitleLarge]}>{item.title}</Text>
+                    <Text style={styles.bentoSubtitle} numberOfLines={1}>{item.subtitle || '开始记录'}</Text>
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -464,45 +494,76 @@ function EditModal({
 }
 
 const styles = StyleSheet.create({
-  moduleGrid: {
-    gap: spacing.md,
+  bentoContainer: {
     padding: spacing.lg,
-    paddingTop: 0,
+    paddingTop: Platform.OS === 'ios' ? 64 : spacing.xl,
+    paddingBottom: spacing.xxl,
   },
-  moduleRow: {
+  heroSection: {
+    marginBottom: spacing.xl,
+    marginTop: spacing.md,
+  },
+  heroGreeting: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  heroDate: {
+    fontSize: 15,
+    color: colors.textSoft,
+    fontWeight: '600',
+  },
+  bentoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
-  moduleCard: {
-    alignItems: 'center',
+  bentoCard: {
+    width: '47.5%',
+    aspectRatio: 1.05,
+    borderRadius: 24,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    aspectRatio: 1.15,
+  },
+  bentoCardLarge: {
+    width: '100%',
+    aspectRatio: 2.1,
+  },
+  bentoContent: {
+    padding: spacing.lg,
     flex: 1,
+    justifyContent: 'space-between',
+  },
+  bentoIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     justifyContent: 'center',
-    padding: spacing.md,
-    ...shadow,
-  },
-  modulePlaceholder: {
-    backgroundColor: 'transparent',
-    opacity: 0,
-    shadowOpacity: 0,
-  },
-  moduleIcon: {
     alignItems: 'center',
-    borderRadius: radius.full,
-    height: 56,
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-    width: 56,
   },
-  moduleTitle: {
+  bentoTextWrapper: {
+    gap: 4,
+  },
+  bentoTitle: {
+    fontSize: 17,
+    fontWeight: '800',
     color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
+  },
+  bentoTitleLarge: {
+    fontSize: 20,
+  },
+  bentoSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSoft,
   },
   pressed: {
     opacity: 0.72,
+    transform: [{ scale: 0.98 }],
   },
   toolbar: {
     alignItems: 'flex-end',
