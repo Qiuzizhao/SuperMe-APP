@@ -567,6 +567,7 @@ const cycles = [
 
 export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/finances/subscriptions');
+  const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Item | null>(null);
   const [form, setForm] = useState({ name: '', amount: '', cycle: 'monthly', next_billing_date: today(), category: '', notes: '', is_active: 'true' });
   const monthlyTotal = items.filter((item) => item.is_active).reduce((sum, item) => sum + Number(item.amount || 0) * (cycles.find((cycle) => cycle.value === item.cycle)?.factor || 0), 0);
@@ -574,6 +575,7 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
   const reset = () => {
     setEditing(null);
     setForm({ name: '', amount: '', cycle: 'monthly', next_billing_date: today(), category: '', notes: '', is_active: 'true' });
+    setModalOpen(false);
   };
   const save = async () => {
     if (!form.name.trim() || Number(form.amount) <= 0) return;
@@ -585,24 +587,21 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
     await load();
   };
 
+  const openForm = (item?: Item) => {
+    if (item) {
+      setEditing(item);
+      setForm({ name: item.name || '', amount: String(item.amount || ''), cycle: item.cycle || 'monthly', next_billing_date: item.next_billing_date || today(), category: item.category || '', notes: item.notes || '', is_active: item.is_active ? 'true' : 'false' });
+    } else {
+      setEditing(null);
+      setForm({ name: '', amount: '', cycle: 'monthly', next_billing_date: today(), category: '', notes: '', is_active: 'true' });
+    }
+    setModalOpen(true);
+  };
+
   return (
     <ScreenShell title="订阅" subtitle={`每月订阅总额 ${money(monthlyTotal)}`} onBack={onBack}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <SectionCard>
-          <Field label="订阅名称" value={form.name} placeholder="如：Spotify 家庭版" onChangeText={(value) => setForm((cur) => ({ ...cur, name: value }))} />
-          <View style={styles.formRow}>
-            <Field label="金额" value={form.amount} keyboardType="decimal-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, amount: value }))} />
-            <DateField label="下次扣费日期" value={form.next_billing_date} onChangeText={(value) => setForm((cur) => ({ ...cur, next_billing_date: value }))} />
-          </View>
-          <SegmentedControl value={form.cycle} onChange={(value) => setForm((cur) => ({ ...cur, cycle: value }))} options={cycles.map(({ label, value }) => ({ label, value }))} />
-          <SegmentedControl value={form.is_active} onChange={(value) => setForm((cur) => ({ ...cur, is_active: value }))} options={[{ label: '启用', value: 'true' }, { label: '停用', value: 'false' }]} />
-          <Field label="分类" value={form.category} placeholder="视频 / 音乐 / 软件" onChangeText={(value) => setForm((cur) => ({ ...cur, category: value }))} />
-          <Field label="备注" value={form.notes} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
-          <View style={styles.formActions}>
-            {editing ? <PrimaryButton label="取消" tone="plain" onPress={reset} /> : null}
-            <PrimaryButton label={editing ? '保存修改' : '新增订阅'} icon="save-outline" onPress={() => void save()} />
-          </View>
-        </SectionCard>
+        <PrimaryButton label="新增订阅" icon="add" onPress={() => openForm()} />
         <StateView loading={loading} error={error} onRetry={load} />
         {items.map((item) => (
           <SectionCard key={item.id}>
@@ -618,13 +617,32 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
               </View>
               <View style={styles.iconColumn}>
                 <IconButton name={item.is_active ? 'pause-outline' : 'play-outline'} label="切换启用" onPress={async () => { await apiRequest(`/finances/subscriptions/${item.id}`, { method: 'PUT', body: { is_active: !item.is_active } }); await load(); }} />
-                <IconButton name="create-outline" label="编辑" onPress={() => { setEditing(item); setForm({ name: item.name || '', amount: String(item.amount || ''), cycle: item.cycle || 'monthly', next_billing_date: item.next_billing_date || today(), category: item.category || '', notes: item.notes || '', is_active: item.is_active ? 'true' : 'false' }); }} />
+                <IconButton name="create-outline" label="编辑" onPress={() => openForm(item)} />
                 <DeleteButton onPress={() => confirmRemove(item.name, async () => { await apiRequest(`/finances/subscriptions/${item.id}`, { method: 'DELETE' }); await load(); })} />
               </View>
             </View>
           </SectionCard>
         ))}
       </ScrollView>
+      <Modal animationType="slide" visible={modalOpen} onRequestClose={() => setModalOpen(false)}>
+        <Screen>
+          <Header title={editing ? '编辑订阅' : '新增订阅'} action={<IconButton name="close" label="关闭" soft onPress={() => setModalOpen(false)} />} />
+          <ScrollView contentContainerStyle={styles.content}>
+            <Field label="订阅名称" value={form.name} placeholder="如：Spotify 家庭版" onChangeText={(value) => setForm((cur) => ({ ...cur, name: value }))} />
+            <View style={styles.formRow}>
+              <Field label="金额" value={form.amount} keyboardType="decimal-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, amount: value }))} />
+              <DateField label="下次扣费日期" value={form.next_billing_date} onChangeText={(value) => setForm((cur) => ({ ...cur, next_billing_date: value }))} />
+            </View>
+            <SegmentedControl value={form.cycle} onChange={(value) => setForm((cur) => ({ ...cur, cycle: value }))} options={cycles.map(({ label, value }) => ({ label, value }))} />
+            <SegmentedControl value={form.is_active} onChange={(value) => setForm((cur) => ({ ...cur, is_active: value }))} options={[{ label: '启用', value: 'true' }, { label: '停用', value: 'false' }]} />
+            <Field label="分类" value={form.category} placeholder="视频 / 音乐 / 软件" onChangeText={(value) => setForm((cur) => ({ ...cur, category: value }))} />
+            <Field label="备注" value={form.notes} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
+            <View style={styles.formActions}>
+              <PrimaryButton label={editing ? '保存修改' : '新增订阅'} icon="save-outline" disabled={!form.name.trim() || Number(form.amount) <= 0} onPress={() => void save()} />
+            </View>
+          </ScrollView>
+        </Screen>
+      </Modal>
     </ScreenShell>
   );
 }
