@@ -183,7 +183,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
   const [reportType, setReportType] = useState('monthly');
   const [expenseChartLevel, setExpenseChartLevel] = useState('category');
   const [chartType, setChartType] = useState('proportion');
-  const [proportionType, setProportionType] = useState('pie'); // 'pie' | 'list'
+  const [proportionType, setProportionType] = useState('donut'); // 'donut' | 'pie'
   const [trendType, setTrendType] = useState('line'); // 'line' | 'bar'
   const [reportWeek, setReportWeek] = useState(currentWeekValue());
   const [reportMonth, setReportMonth] = useState(currentMonthValue());
@@ -542,7 +542,7 @@ function FinanceReportScreen({ onBack }: { onBack: () => void }) {
   const [reportType, setReportType] = useState('monthly');
   const [expenseChartLevel, setExpenseChartLevel] = useState('category');
   const [chartType, setChartType] = useState('proportion');
-  const [proportionType, setProportionType] = useState('pie');
+  const [proportionType, setProportionType] = useState('donut');
   const [trendType, setTrendType] = useState('line');
   const [reportWeek, setReportWeek] = useState(currentWeekValue());
   const [reportMonth, setReportMonth] = useState(currentMonthValue());
@@ -841,7 +841,7 @@ function FinanceReport({
       <SegmentedControl value={chartType} onChange={setChartType} options={[{ label: '占比', value: 'proportion' }, { label: '趋势', value: 'trend' }]} />
       
       {chartType === 'proportion' && (
-        <SegmentedControl value={proportionType} onChange={setProportionType} options={[{ label: '饼图', value: 'pie' }, { label: '列表', value: 'list' }]} />
+        <SegmentedControl value={proportionType} onChange={setProportionType} options={[{ label: '环状图', value: 'donut' }, { label: '饼图', value: 'pie' }]} />
       )}
       {chartType === 'trend' && (
         <SegmentedControl value={trendType} onChange={setTrendType} options={[{ label: '折线图', value: 'line' }, { label: '柱状图', value: 'bar' }]} />
@@ -894,8 +894,8 @@ function FinanceReport({
         </View>
       ) : (
         <View style={styles.breakdownList}>
-          {proportionType === 'pie' && categoryData.length > 0 && (
-            <View style={styles.chartContainerCompact}>
+          {categoryData.length > 0 && (
+            <View style={[styles.chartContainerCompact, { position: 'relative' }]}>
               <PieChart
                 data={pieData}
                 width={screenWidth - spacing.lg * 4}
@@ -908,6 +908,21 @@ function FinanceReport({
                 paddingLeft={"15"}
                 absolute
               />
+              {proportionType === 'donut' && (
+                <View 
+                  style={{ 
+                    position: 'absolute', 
+                    width: 100, 
+                    height: 100, 
+                    borderRadius: 50, 
+                    backgroundColor: colors.surface,
+                    left: (screenWidth - spacing.lg * 4) / 4 + 15,
+                    top: 100,
+                    marginLeft: -50,
+                    marginTop: -50,
+                  }} 
+                />
+              )}
             </View>
           )}
           {categoryData.length === 0 ? <Text style={styles.emptyBillText}>暂无图表数据</Text> : categoryData.map((item: any) => {
