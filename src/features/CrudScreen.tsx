@@ -509,17 +509,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     textAlign: 'center',
   },
-  moduleFooter: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 2,
-    marginTop: 'auto',
-    justifyContent: 'center',
-  },
-  moduleAction: {
-    fontSize: 13,
-    fontWeight: '900',
-  },
   pressed: {
     opacity: 0.72,
   },
