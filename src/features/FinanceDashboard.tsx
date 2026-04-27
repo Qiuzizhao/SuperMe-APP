@@ -622,7 +622,6 @@ function FinanceReportScreen({ onBack }: { onBack: () => void }) {
 
   const totalExpense = useMemo(() => globalFilteredFinances.filter(i => i.transaction_type === 'expense').reduce((sum, item) => sum + Number(item.amount || 0), 0), [globalFilteredFinances]);
   const totalIncome = useMemo(() => globalFilteredFinances.filter(i => i.transaction_type === 'income').reduce((sum, item) => sum + Number(item.amount || 0), 0), [globalFilteredFinances]);
-  const netBalance = totalIncome - totalExpense;
 
   const groupKey = useCallback((item: FinanceItem) => {
     if (activeTab === 'expense') {
@@ -679,29 +678,29 @@ function FinanceReportScreen({ onBack }: { onBack: () => void }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadFinances(); }} />}
       >
         <View style={styles.grid}>
-          <View style={[styles.statCard, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
-            <Text style={[styles.statLabel, { color: '#2563eb' }]}>结余</Text>
-            <Text style={[styles.statValueBig, { color: netBalance >= 0 ? '#16a34a' : '#dc2626' }]}>
-              {netBalance >= 0 ? '+' : ''}{formatCurrency(netBalance)}
-            </Text>
-          </View>
           <View style={styles.statCardSmallRow}>
-            <View style={styles.statCardSmall}>
+            <Pressable
+              style={[
+                styles.statCardSmall,
+                activeTab === 'income' && { borderColor: '#16a34a', backgroundColor: '#f0fdf4' }
+              ]}
+              onPress={() => setActiveTab('income')}
+            >
               <Text style={styles.statLabelSmall}>总收入</Text>
               <Text style={[styles.statValueSmall, { color: '#16a34a' }]}>+{formatCurrency(totalIncome)}</Text>
-            </View>
-            <View style={styles.statCardSmall}>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.statCardSmall,
+                activeTab === 'expense' && { borderColor: '#dc2626', backgroundColor: '#fef2f2' }
+              ]}
+              onPress={() => setActiveTab('expense')}
+            >
               <Text style={styles.statLabelSmall}>总支出</Text>
               <Text style={[styles.statValueSmall, { color: '#dc2626' }]}>-{formatCurrency(totalExpense)}</Text>
-            </View>
+            </Pressable>
           </View>
         </View>
-
-        <SegmentedControl 
-          value={activeTab} 
-          onChange={(value) => setActiveTab(value as 'expense' | 'income')} 
-          options={[{ label: '支出报表', value: 'expense' }, { label: '收入报表', value: 'income' }]} 
-        />
 
         <FinanceReport
           activeTab={activeTab}
@@ -808,13 +807,17 @@ function FinanceReport({
   const pieData = categoryData.map((item: any) => {
     const percent = filteredTotalAmount > 0 ? (item.value / filteredTotalAmount) * 100 : 0;
     return {
-      name: `${item.name} ${percent.toFixed(1)}%`,
+      name: ` ${item.name} ${percent.toFixed(1)}%`,
       population: item.value,
       color: getTagHexColor(item.name),
       legendFontColor: '#6B7280',
       legendFontSize: 12,
     };
   });
+
+  // Hack for react-native-chart-kit: If we don't want it to show the value on the pie slice itself,
+  // we can use a transparent color for the label using chartConfig.
+
 
   return (
     <View style={styles.reportPanel}>
@@ -910,7 +913,8 @@ function FinanceReport({
                 backgroundColor={"transparent"}
                 paddingLeft={"15"}
                 hasLegend={true}
-                absolute={false}
+                absolute={true}
+                center={[0, 0]}
               />
               {proportionType === 'donut' && (
                 <View 
@@ -1525,6 +1529,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   statLabelSmall: {
     fontSize: 11,
