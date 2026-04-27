@@ -1,7 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { PropsWithChildren } from 'react';
+import * as Haptics from 'expo-haptics';
+import React, { PropsWithChildren, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,11 +13,13 @@ import {
   TextInputProps,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, radius, shadow, spacing } from '@/src/theme';
 
 export function Screen({ children }: PropsWithChildren) {
-  return <View style={styles.screen}>{children}</View>;
+  const insets = useSafeAreaInsets();
+  return <View style={[styles.screen, { paddingTop: insets.top }]}>{children}</View>;
 }
 
 export function Header({
@@ -51,10 +56,17 @@ export function PrimaryButton({
   tone?: 'primary' | 'danger' | 'plain';
 }) {
   const plain = tone === 'plain';
+  const handlePress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onPress();
+  };
+
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={disabled ? undefined : onPress}
+      onPress={disabled ? undefined : handlePress}
       style={({ pressed }) => [
         styles.button,
         tone === 'danger' && styles.buttonDanger,
@@ -81,11 +93,18 @@ export function IconButton({
   label?: string;
   soft?: boolean;
 }) {
+  const handlePress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onPress();
+  };
+
   return (
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={handlePress}
       style={({ pressed }) => [styles.iconButton, soft && styles.iconButtonSoft, pressed && styles.pressed]}>
       <Ionicons name={name} size={21} color={color} />
     </Pressable>
@@ -109,6 +128,136 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
   );
 }
 
+function pad(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function dateString(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function monthString(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
+
+function parsePickerDate(value?: string, mode: 'date' | 'month' = 'date') {
+  const now = new Date();
+  if (!value) return now;
+  const parts = value.split('-').map(Number);
+  if (mode === 'month' && parts.length >= 2 && parts[0] && parts[1]) return new Date(parts[0], parts[1] - 1, 1);
+  if (parts.length >= 3 && parts[0] && parts[1] && parts[2]) return new Date(parts[0], parts[1] - 1, parts[2]);
+  return now;
+}
+
+function buildCalendarDays(viewDate: Date) {
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const prevDays = new Date(year, month, 0).getDate();
+  const cells: { date: Date; currentMonth: boolean }[] = [];
+
+  for (let i = firstWeekday - 1; i >= 0; i -= 1) {
+    cells.push({ date: new Date(year, month - 1, prevDays - i), currentMonth: false });
+  }
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push({ date: new Date(year, month, day), currentMonth: true });
+  }
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    cells.push({ date: new Date(year, month + 1, cells.length - firstWeekday - daysInMonth + 1), currentMonth: false });
+  }
+  return cells;
+}
+
+export function DateField({
+  label,
+  value,
+  onChangeText,
+  mode = 'date',
+  placeholder,
+  optional,
+}: {
+  label: string;
+  value?: string;
+  onChangeText: (value: string) => void;
+  mode?: 'date' | 'month';
+  placeholder?: string;
+  optional?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => parsePickerDate(value, mode));
+  const selectedValue = value || '';
+  const days = useMemo(() => buildCalendarDays(viewDate), [viewDate]);
+  const today = new Date();
+
+  const openPicker = () => {
+    setViewDate(parsePickerDate(value, mode));
+    setOpen(true);
+  };
+
+  const chooseDate = (date: Date) => {
+    onChangeText(mode === 'month' ? monthString(date) : dateString(date));
+    setOpen(false);
+  };
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable onPress={openPicker} style={({ pressed }) => [styles.input, styles.dateInput, pressed && styles.pressed]}>
+        <Text style={[styles.dateInputText, !selectedValue && styles.dateInputPlaceholder]}>{selectedValue || placeholder || (mode === 'month' ? '选择月份' : '选择日期')}</Text>
+        <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={styles.pickerOverlay} onPress={() => setOpen(false)}>
+          <Pressable style={styles.pickerPanel} onPress={(event) => event.stopPropagation()}>
+            <View style={styles.pickerHeader}>
+              <IconButton name="chevron-back" label="上一个" soft onPress={() => setViewDate((date) => new Date(date.getFullYear(), date.getMonth() - (mode === 'month' ? 12 : 1), 1))} />
+              <Text style={styles.pickerTitle}>{mode === 'month' ? `${viewDate.getFullYear()}年` : `${viewDate.getFullYear()}年 ${viewDate.getMonth() + 1}月`}</Text>
+              <IconButton name="chevron-forward" label="下一个" soft onPress={() => setViewDate((date) => new Date(date.getFullYear(), date.getMonth() + (mode === 'month' ? 12 : 1), 1))} />
+            </View>
+            {mode === 'month' ? (
+              <View style={styles.monthGrid}>
+                {Array.from({ length: 12 }, (_, index) => {
+                  const date = new Date(viewDate.getFullYear(), index, 1);
+                  const monthValue = monthString(date);
+                  const selected = selectedValue === monthValue;
+                  return (
+                    <Pressable key={monthValue} onPress={() => chooseDate(date)} style={[styles.monthCell, selected && styles.pickerCellSelected]}>
+                      <Text style={[styles.monthCellText, selected && styles.pickerCellTextSelected]}>{index + 1}月</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <>
+                <View style={styles.weekRow}>
+                  {['日', '一', '二', '三', '四', '五', '六'].map((item) => <Text key={item} style={styles.weekText}>{item}</Text>)}
+                </View>
+                <View style={styles.dayGrid}>
+                  {days.map(({ date, currentMonth }) => {
+                    const dayValue = dateString(date);
+                    const selected = selectedValue === dayValue;
+                    const isToday = dayValue === dateString(today);
+                    return (
+                      <Pressable key={dayValue} onPress={() => chooseDate(date)} style={[styles.dayCell, selected && styles.pickerCellSelected, isToday && !selected && styles.todayCell]}>
+                        <Text style={[styles.dayCellText, !currentMonth && styles.dayCellMuted, selected && styles.pickerCellTextSelected]}>{date.getDate()}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+            <View style={styles.pickerFooter}>
+              {optional ? <PrimaryButton label="清空" tone="plain" onPress={() => { onChangeText(''); setOpen(false); }} /> : null}
+              <PrimaryButton label={mode === 'month' ? '本月' : '今天'} tone="plain" onPress={() => chooseDate(new Date())} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
 export function SegmentedControl({
   value,
   options,
@@ -122,10 +271,16 @@ export function SegmentedControl({
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmented}>
       {options.map((option) => {
         const selected = option.value === value;
+        const handlePress = () => {
+          if (!selected && Platform.OS !== 'web') {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          onChange(option.value);
+        };
         return (
           <Pressable
             key={option.value}
-            onPress={() => onChange(option.value)}
+            onPress={handlePress}
             style={[styles.segment, selected && styles.segmentSelected]}>
             <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>{option.label}</Text>
           </Pressable>
@@ -207,11 +362,11 @@ const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     backgroundColor: colors.primary,
-    borderRadius: radius.md,
+    borderRadius: 9999,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: 46,
+    minHeight: 48,
     paddingHorizontal: spacing.lg,
   },
   buttonDanger: {
@@ -247,9 +402,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.xl,
     padding: spacing.lg,
     ...shadow,
   },
@@ -263,19 +416,119 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.lg,
     color: colors.text,
     fontSize: 16,
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
+    minHeight: 52,
+    paddingHorizontal: spacing.lg,
   },
   inputMultiline: {
     minHeight: 108,
     paddingTop: spacing.md,
     textAlignVertical: 'top',
+  },
+  dateInput: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  dateInputText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  dateInputPlaceholder: {
+    color: colors.faint,
+  },
+  pickerOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.24)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  pickerPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    maxWidth: 360,
+    padding: spacing.lg,
+    width: '100%',
+    ...shadow,
+  },
+  pickerHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  pickerTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  weekRow: {
+    flexDirection: 'row',
+  },
+  weekText: {
+    color: colors.muted,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  dayGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: spacing.sm,
+  },
+  dayCell: {
+    alignItems: 'center',
+    aspectRatio: 1,
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    width: '14.285%',
+  },
+  dayCellText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  dayCellMuted: {
+    color: colors.faint,
+  },
+  todayCell: {
+    backgroundColor: colors.primarySoft,
+  },
+  pickerCellSelected: {
+    backgroundColor: colors.text,
+  },
+  pickerCellTextSelected: {
+    color: '#fff',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  monthCell: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.lg,
+    minHeight: 48,
+    justifyContent: 'center',
+    width: '30%',
+  },
+  monthCellText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  pickerFooter: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'flex-end',
+    marginTop: spacing.lg,
   },
   segmented: {
     alignItems: 'center',
@@ -287,20 +540,18 @@ const styles = StyleSheet.create({
   segment: {
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    minHeight: 38,
+    borderRadius: 9999,
+    minHeight: 42,
     justifyContent: 'center',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
+    ...shadow,
   },
   segmentSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.text,
   },
   segmentText: {
-    color: colors.muted,
-    fontSize: 13,
+    color: colors.textSoft,
+    fontSize: 14,
     fontWeight: '800',
   },
   segmentTextSelected: {

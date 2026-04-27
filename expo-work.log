@@ -1,0 +1,133 @@
+Starting project at C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP
+React Compiler enabled
+Starting Metro Bundler
+The following packages should be updated for best compatibility with the installed expo version:
+  expo@54.0.33 - expected version: ~54.0.34
+  expo-image-picker@17.0.10 - expected version: ~17.0.11
+  expo-linking@8.0.11 - expected version: ~8.0.12
+  expo-web-browser@15.0.10 - expected version: ~15.0.11
+  react-native-svg@15.15.4 - expected version: 15.12.1
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8084
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 1128ms node_modules\expo-router\node\render.js (1365 modules)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 2291ms node_modules\expo-router\entry.js (1355 modules)
+Web Bundled 324ms node_modules\expo-router\entry.js (1008 modules)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 19ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 263ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 29ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 286ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 1888ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 28ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 28ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 298ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 33ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 372ms node_modules\expo-router\entry.js (1 module)
+λ Bundled 469ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 28ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 444ms node_modules\expo-router\entry.js (1 module)
+λ Bundled 593ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 25ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 188ms node_modules\expo-router\entry.js (1 module)
+λ Bundled 225ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 28ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 192ms node_modules\expo-router\entry.js (1 module)
+λ Bundled 216ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 28ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 40ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 507ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 30ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+ ERROR  SyntaxError: C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\src\features\FinanceDashboard.tsx: Unexpected token, expected "}" (1158:8)
+
+  1156 |
+  1157 | const styles = StyleSheet.create({
+> 1158 |   header: {
+       |         ^
+  1159 |     paddingTop: Platform.OS === 'ios' ? 54 : spacing.xl,
+  1160 |     paddingBottom: spacing.xs,
+  1161 |   },
+    at constructor (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:365:19)
+    at TypeScriptParserMixin.raise (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:6599:19)
+    at TypeScriptParserMixin.unexpected (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:6619:16)
+    at TypeScriptParserMixin.expect (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:6899:12)
+    at TypeScriptParserMixin.jsxParseExpressionContainer (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:4637:10)
+    at TypeScriptParserMixin.jsxParseElementAt (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:4711:36)
+    at TypeScriptParserMixin.jsxParseElement (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:4749:17)
+    at TypeScriptParserMixin.parseExprAtom (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:4759:19)
+    at TypeScriptParserMixin.parseExprSubscripts (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:11081:23)
+    at TypeScriptParserMixin.parseUpdate (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:11066:21)
+    at TypeScriptParserMixin.parseMaybeUnary (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:11046:23)
+    at TypeScriptParserMixin.parseMaybeUnary (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:9837:18)
+    at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10899:61)
+    at TypeScriptParserMixin.parseExprOps (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10904:23)
+    at TypeScriptParserMixin.parseMaybeConditional (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10881:23)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10831:21)
+    at C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:9775:39
+    at TypeScriptParserMixin.tryParse (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:6907:20)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:9775:18)
+    at C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10800:39
+    at TypeScriptParserMixin.allowInAnd (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:12426:12)
+    at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10800:17)
+    at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:12493:17)
+    at TypeScriptParserMixin.parseParenAndDistinguishExpression (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:11675:28)
+    at TypeScriptParserMixin.parseExprAtom (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:11331:23)
+    at TypeScriptParserMixin.parseExprAtom (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:4764:20)
+    at TypeScriptParserMixin.parseExprSubscripts (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:11081:23)
+    at TypeScriptParserMixin.parseUpdate (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:11066:21)
+    at TypeScriptParserMixin.parseMaybeUnary (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:11046:23)
+    at TypeScriptParserMixin.parseMaybeUnary (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:9837:18)
+    at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10899:61)
+    at TypeScriptParserMixin.parseExprOps (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10904:23)
+    at TypeScriptParserMixin.parseMaybeConditional (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10881:23)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10831:21)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:9786:20)
+    at TypeScriptParserMixin.parseExpressionBase (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10784:23)
+    at C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10780:39
+    at TypeScriptParserMixin.allowInAnd (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:12421:16)
+    at TypeScriptParserMixin.parseExpression (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:10780:17)
+    at TypeScriptParserMixin.parseReturnStatement (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:13142:28)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:12798:21)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:9508:18)
+    at TypeScriptParserMixin.parseStatementLike (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:12767:17)
+    at TypeScriptParserMixin.parseStatementListItem (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:12747:17)
+    at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:13316:61)
+    at TypeScriptParserMixin.parseBlockBody (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:13309:10)
+    at TypeScriptParserMixin.parseBlock (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:13297:10)
+    at TypeScriptParserMixin.parseFunctionBody (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:12100:24)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:12086:10)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (C:\Users\Qiuzizhao\Desktop\Projects\SuperMe-APP\SuperMe-APP\node_modules\@babel\parser\lib\index.js:9172:18)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 367ms node_modules\expo-router\entry.js (1 module)
+λ Bundled 502ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 29ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 24ms node_modules\expo-router\node\render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 268ms node_modules\expo-router\entry.js (1 module)
