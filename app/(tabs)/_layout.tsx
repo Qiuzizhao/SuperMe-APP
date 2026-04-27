@@ -1,35 +1,41 @@
-import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuth } from '@/src/auth/AuthContext';
+import { colors, shadow } from '@/src/theme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { isReady, isAuthenticated } = useAuth();
+
+  if (!isReady) return null;
+  if (!isAuthenticated) return <Redirect href="/login" />;
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.faint,
         tabBarButton: HapticTab,
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '800',
+        },
+        tabBarStyle: {
+          backgroundColor: colors.tab,
+          borderTopColor: colors.border,
+          height: 68,
+          paddingBottom: 10,
+          paddingTop: 8,
+          ...shadow,
+        },
       }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
+      <Tabs.Screen name="daily" options={{ title: '日常', tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="finance" options={{ title: '财务', tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="growth" options={{ title: '成长', tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="settings" options={{ title: '设置', tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} /> }} />
     </Tabs>
   );
 }
