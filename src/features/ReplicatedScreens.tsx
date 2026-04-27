@@ -427,43 +427,88 @@ function NoteModal({ visible, title, onClose, onSubmit, initialData, onDelete }:
 }
 
 export function WorkLogScreen({ onBack }: { onBack: () => void }) {
+  const createWorkLogForm = () => ({ record: '', activity_name: '', event_date: today(), event_time: '', location: '', notes: '' });
+  const getWorkLogFormFromItem = (item: Item) => {
+    const eventDate = String(item.event_time || '').slice(0, 10);
+    const eventTime = String(item.event_time || '').slice(11, 16);
+    return {
+      record: item.record || '',
+      activity_name: item.activity_name || '',
+      event_date: eventDate || today(),
+      event_time: eventTime,
+      location: item.location || '',
+      notes: item.notes || '',
+    };
+  };
   const [type, setType] = useState('daily');
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>(`/worklogs/?log_type=${type}`);
-  const [form, setForm] = useState({ record: '', activity_name: '', event_date: today(), event_time: '', location: '', notes: '' });
+  const [form, setForm] = useState(createWorkLogForm);
   const [adding, setAdding] = useState(false);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
 
   const groups = useMemo(() => groupByDate(items, (item) => item.event_time || item.created_at), [items]);
   const save = async () => {
     if (!form.record.trim()) return;
-    await apiRequest('/worklogs/', {
-      method: 'POST',
+    const payload = {
+      log_type: type,
+      record: form.record.trim(),
+      activity_name: form.activity_name.trim() || null,
+      event_time: form.event_date ? `${form.event_date}T${form.event_time || '00:00'}` : null,
+      location: form.location.trim() || null,
+      notes: form.notes.trim() || null,
+    };
+    await apiRequest(editingItem ? `/worklogs/${editingItem.id}` : '/worklogs/', {
+      method: editingItem ? 'PUT' : 'POST',
       body: {
-        log_type: type,
-        record: form.record.trim(),
-        activity_name: form.activity_name.trim() || null,
-        event_time: form.event_date ? `${form.event_date}T${form.event_time || '00:00'}` : null,
-        location: form.location.trim() || null,
-        notes: form.notes.trim() || null,
+        ...payload,
       },
     });
-    setForm({ record: '', activity_name: '', event_date: today(), event_time: '', location: '', notes: '' });
+    setForm(createWorkLogForm());
     setAdding(false);
+    setEditingItem(null);
     await load();
+  };
+
+  const openCreate = () => {
+    setEditingItem(null);
+    setForm(createWorkLogForm());
+    setAdding(true);
+  };
+
+  const openEdit = (item: Item) => {
+    setEditingItem(item);
+    setForm(getWorkLogFormFromItem(item));
+    setAdding(true);
+  };
+
+  const closeModal = () => {
+    setAdding(false);
+    setEditingItem(null);
+    setForm(createWorkLogForm());
+  };
+
+  const remove = async () => {
+    if (!editingItem) return;
+    confirmRemove(editingItem.activity_name || editingItem.record || '工作日志', async () => {
+      await apiRequest(`/worklogs/${editingItem.id}`, { method: 'DELETE' });
+      closeModal();
+      await load();
+    });
   };
 
   return (
     <ScreenShell title="工作日志" subtitle="日常工作与活动安排" onBack={onBack}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <PrimaryButton label="新建日志" icon="add" onPress={() => setAdding(true)} />
+        <PrimaryButton label="新建日志" icon="add" onPress={openCreate} />
         <SegmentedControl value={type} onChange={setType} options={[{ label: '日常记录', value: 'daily' }, { label: '活动记录', value: 'activity' }]} />
         
         <StateView loading={loading} error={error} onRetry={load} />
-        <GroupedLogList groups={groups} onDelete={(item) => confirmRemove(item.activity_name || item.record || '工作日志', async () => { await apiRequest(`/worklogs/${item.id}`, { method: 'DELETE' }); await load(); })} />
+        <GroupedLogList groups={groups} onLongPress={openEdit} />
       </ScrollView>
 
-      <Modal visible={adding} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAdding(false)}>
+      <Modal visible={adding} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeModal}>
         <Screen>
-          <Header title="记录工作日志" action={<IconButton name="close" label="关闭" soft onPress={() => setAdding(false)} />} />
+          <Header title={editingItem ? "编辑工作日志" : "记录工作日志"} action={<IconButton name="close" label="关闭" soft onPress={closeModal} />} />
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={styles.modalScroll}>
               <Field label="活动名" value={form.activity_name} placeholder={type === 'activity' ? '例如：家长会、教研活动' : '例如：备课、批改作业'} onChangeText={(value) => setForm((cur) => ({ ...cur, activity_name: value }))} />
@@ -476,8 +521,9 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
               <Field label="备注" value={form.notes} multiline placeholder="补充说明" onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
             </ScrollView>
             <View style={styles.modalFooter}>
-              <PrimaryButton label="取消" tone="plain" onPress={() => setAdding(false)} />
-              <PrimaryButton label="保存" icon="save-outline" disabled={!form.record.trim()} onPress={() => void save()} />
+              {editingItem ? <PrimaryButton label="删除" tone="danger" onPress={() => void remove()} /> : null}
+              <PrimaryButton label="取消" tone="plain" onPress={closeModal} />
+              <PrimaryButton label={editingItem ? "保存修改" : "保存"} icon="save-outline" disabled={!form.record.trim()} onPress={() => void save()} />
             </View>
           </KeyboardAvoidingView>
         </Screen>
@@ -616,7 +662,7 @@ function groupByDate(items: Item[], dateGetter: (item: Item) => string) {
   }, []);
 }
 
-function GroupedLogList({ groups, onDelete }: { groups: ReturnType<typeof groupByDate>; onDelete: (item: Item) => void }) {
+function GroupedLogList({ groups, onLongPress }: { groups: ReturnType<typeof groupByDate>; onLongPress: (item: Item) => void }) {
   return (
     <View style={styles.timeline}>
       {groups.map((group) => (
@@ -624,21 +670,23 @@ function GroupedLogList({ groups, onDelete }: { groups: ReturnType<typeof groupB
           <Text style={styles.groupTitle}>{group.isToday ? '📅 今天' : `📅 ${group.date}`}</Text>
           {group.items.map((item) => (
             <SectionCard key={item.id}>
-              <View style={styles.rowTop}>
-                <View style={styles.flex}>
-                  <View style={styles.rowWrap}>
-                    <Tag label={item.log_type === 'activity' ? '活动记录' : '日常记录'} tone="blue" />
-                    {item.activity_name ? <Text style={styles.itemTitle}>{item.activity_name}</Text> : null}
+              <Pressable onLongPress={() => onLongPress(item)}>
+                <View style={styles.rowTop}>
+                  <View style={styles.flex}>
+                    <View style={styles.rowWrap}>
+                      <Tag label={item.log_type === 'activity' ? '活动记录' : '日常记录'} tone="blue" />
+                      {item.activity_name ? <Text style={styles.itemTitle}>{item.activity_name}</Text> : null}
+                    </View>
+                    <Text style={styles.bodyText}>{item.record}</Text>
+                    <View style={styles.tagRow}>
+                      {item.event_time ? <Tag label={`⏰ ${compactDateTime(item.event_time)}`} /> : null}
+                      {item.location ? <Tag label={`📍 ${item.location}`} /> : null}
+                    </View>
+                    {item.notes ? <Text style={styles.metaText}>备注：{item.notes}</Text> : null}
+                    <Text style={styles.metaText}>长按可编辑</Text>
                   </View>
-                  <Text style={styles.bodyText}>{item.record}</Text>
-                  <View style={styles.tagRow}>
-                    {item.event_time ? <Tag label={`⏰ ${compactDateTime(item.event_time)}`} /> : null}
-                    {item.location ? <Tag label={`📍 ${item.location}`} /> : null}
-                  </View>
-                  {item.notes ? <Text style={styles.metaText}>备注：{item.notes}</Text> : null}
                 </View>
-                <DeleteButton onPress={() => onDelete(item)} />
-              </View>
+              </Pressable>
             </SectionCard>
           ))}
         </View>
