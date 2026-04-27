@@ -197,6 +197,7 @@ export function DateField({
   mode = 'date',
   placeholder,
   optional,
+  compact,
 }: {
   label: string;
   value?: string;
@@ -204,6 +205,7 @@ export function DateField({
   mode?: 'date' | 'month' | 'year' | 'week';
   placeholder?: string;
   optional?: boolean;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => parsePickerDate(value, mode));
@@ -225,11 +227,11 @@ export function DateField({
   };
 
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable onPress={openPicker} style={({ pressed }) => [styles.input, styles.dateInput, pressed && styles.pressed]}>
-        <Text style={[styles.dateInputText, !selectedValue && styles.dateInputPlaceholder]}>{selectedValue || placeholder || (mode === 'year' ? '选择年份' : mode === 'month' ? '选择月份' : mode === 'week' ? '选择周' : '选择日期')}</Text>
-        <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+    <View style={compact ? styles.fieldCompact : styles.field}>
+      {!compact && <Text style={styles.fieldLabel}>{label}</Text>}
+      <Pressable onPress={openPicker} style={({ pressed }) => [styles.input, compact && styles.inputCompact, styles.dateInput, pressed && styles.pressed]}>
+        <Text style={[styles.dateInputText, compact && styles.dateInputTextCompact, !selectedValue && styles.dateInputPlaceholder]}>{selectedValue || placeholder || (mode === 'year' ? '选择年份' : mode === 'month' ? '选择月份' : mode === 'week' ? '选择周' : '选择日期')}</Text>
+        <Ionicons name="calendar-outline" size={compact ? 16 : 20} color={colors.primary} />
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.pickerOverlay} onPress={() => setOpen(false)}>
@@ -450,6 +452,10 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginBottom: spacing.md,
   },
+  fieldCompact: {
+    gap: 0,
+    marginBottom: 0,
+  },
   fieldLabel: {
     color: colors.textSoft,
     fontSize: 13,
@@ -463,6 +469,12 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: spacing.lg,
   },
+  inputCompact: {
+    minHeight: 34,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+  },
   inputMultiline: {
     minHeight: 108,
     paddingTop: spacing.md,
@@ -472,11 +484,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   dateInputText: {
     color: colors.text,
     fontSize: 16,
     fontWeight: '700',
+  },
+  dateInputTextCompact: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   dateInputPlaceholder: {
     color: colors.faint,

@@ -34,8 +34,8 @@ export default function TabLayout() {
       }}>
       <Tabs.Screen name="daily" options={{ title: '日常', tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle-outline" size={size} color={color} /> }} />
       <Tabs.Screen name="finance" options={{ title: '财务', tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="growth" options={{ title: '成长', tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" size={size} color={color} /> }} />
       <Tabs.Screen name="settings" options={{ title: '设置', tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="growth" options={{ href: null }} />
     </Tabs>
   );
 }

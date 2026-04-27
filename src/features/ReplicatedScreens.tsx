@@ -750,7 +750,7 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <PrimaryButton label="录入新资产" icon="add" onPress={() => open()} />
         <View style={styles.statsGrid}>
-          <Stat label="资产总计" value={money(dashboard.totalOriginal)} />
+          <Stat label="资产总计" value={money(dashboard.totalOriginal)} subValue={`每日总成本: ${money(dashboard.totalDailyCost)}/天`} />
         </View>
         <StateView loading={loading} error={error} onRetry={load} />
         {processed.map((item) => (
@@ -763,9 +763,13 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
                     <Tag label={item.category} />
                     <Tag label={assetStatus[item.status as keyof typeof assetStatus] || item.status} tone={item.status === 'in_use' ? 'green' : 'orange'} />
                   </View>
-                  <MetricLine label="购入价格" value={money(item.price)} />
-                  <MetricLine label="已购入天数" value={`${item.daysUsed} 天`} />
-                  <MetricLine label="每日成本" value={`${money(item.actualDailyCost)}/天`} />
+                  <View style={[styles.rowWrap, { marginTop: 12, gap: 12 }]}>
+                    <Text style={styles.metricValue}>{money(item.price)}</Text>
+                    <Text style={styles.metaText}>•</Text>
+                    <Text style={styles.metricValue}>{item.daysUsed} 天</Text>
+                    <Text style={styles.metaText}>•</Text>
+                    <Text style={styles.metricValue}>{money(item.actualDailyCost)}/天</Text>
+                  </View>
                   {item.notes ? <Text style={[styles.bodyText, { marginTop: 8 }]} >{item.notes}</Text> : null}
                 </View>
               </View>
@@ -804,23 +808,17 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function Stat({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
+function Stat({ label, value, danger, subValue }: { label: string; value: string; danger?: boolean; subValue?: string }) {
   return (
     <SectionCard style={styles.statCard}>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={[styles.statValue, danger && { color: colors.danger }]}>{value}</Text>
+      {subValue ? <Text style={[styles.metaText, { marginTop: 2 }]}>{subValue}</Text> : null}
     </SectionCard>
   );
 }
 
-function MetricLine({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metricLine}>
-      <Text style={styles.metaText}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
-    </View>
-  );
-}
+
 
 export function WishlistScreen({ onBack }: { onBack: () => void }) {
   const { items: allItems, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/extras/wishlists/');

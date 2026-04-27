@@ -1223,7 +1223,7 @@ function IncomeAnalysis({ onBack }: { onBack: () => void }) {
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>🐷 实发到账统计</Text>
         <View style={styles.monthPickerCompact}>
-          <DateField label="截止" value={netStatsMonth} onChangeText={setNetStatsMonth} mode="month" />
+          <DateField label="截止" value={netStatsMonth} onChangeText={setNetStatsMonth} mode="month" compact />
         </View>
       </View>
       
@@ -1246,7 +1246,7 @@ function IncomeAnalysis({ onBack }: { onBack: () => void }) {
       <View style={[styles.sectionHeaderRow, { marginTop: spacing.xl }]}>
         <Text style={styles.sectionTitle}>📈 未来年度预估</Text>
         <View style={styles.monthPickerCompact}>
-          <DateField label="截止" value={projectionMonth} onChangeText={setProjectionMonth} mode="month" />
+          <DateField label="截止" value={projectionMonth} onChangeText={setProjectionMonth} mode="month" compact />
         </View>
       </View>
       
@@ -1294,7 +1294,7 @@ function IncomeAnalysis({ onBack }: { onBack: () => void }) {
                 <Text style={[styles.categoryBadgeText, { color: hex }]}>{cat}</Text>
               </View>
               <View style={styles.monthPickerCompact}>
-                <DateField label="截止" value={displayData.currentMonth} onChangeText={(val) => handleCategoryMonthChange(cat, val)} mode="month" />
+                <DateField label="截止" value={displayData.currentMonth} onChangeText={(val) => handleCategoryMonthChange(cat, val)} mode="month" compact />
               </View>
             </View>
             <View style={styles.categoryStatsRow}>
@@ -1353,7 +1353,7 @@ function IncomeAnalysis({ onBack }: { onBack: () => void }) {
         <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={styles.sectionTitle}>📅 收入规律图</Text>
           <View style={styles.monthPickerCompact}>
-            <DateField label="截止" value={chartMonth} onChangeText={setChartMonth} mode="month" />
+            <DateField label="截止" value={chartMonth} onChangeText={setChartMonth} mode="month" compact />
           </View>
         </View>
         
@@ -1663,7 +1663,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   monthPickerCompact: {
-    minWidth: 150,
+    minWidth: 100,
   },
   amountInput: {
     backgroundColor: colors.surfaceMuted,
