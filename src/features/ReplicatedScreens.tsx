@@ -33,6 +33,14 @@ const compactDateTime = (value?: string) => {
 };
 const money = (value: unknown) => `￥${Number(value || 0).toFixed(2)}`;
 
+const MOOD_IMAGES = {
+  5: require('../../assets/images/emojis/5.png'),
+  4: require('../../assets/images/emojis/4.png'),
+  3: require('../../assets/images/emojis/3.png'),
+  2: require('../../assets/images/emojis/2.png'),
+  1: require('../../assets/images/emojis/1.png'),
+};
+
 function useItems<T extends Item>(endpoint: string) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,7 +238,8 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
   const { items, loading, refreshing, setRefreshing, error, load } = useItems<Item>('/notes/');
   const [selected, setSelected] = useState<Item | null>(null);
   const [thread, setThread] = useState<Item[]>([]);
-  const [modalKind, setModalKind] = useState<'root' | 'thread' | null>(null);
+  const [modalKind, setModalKind] = useState<'root' | 'thread' | 'edit' | null>(null);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
 
   const loadThread = useCallback(async (id: number) => {
     const data = await apiRequest<Item[]>(`/notes/thread/${id}`);
@@ -242,9 +251,19 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
     void loadThread(note.id);
   };
 
-  const addNote = async (payload: Record<string, unknown>) => {
-    await apiRequest('/notes/', { method: 'POST', body: payload });
+  const handleLongPress = (item: Item) => {
+    setEditingItem(item);
+    setModalKind('edit');
+  };
+
+  const addOrUpdateNote = async (payload: Record<string, unknown>) => {
+    if (modalKind === 'edit' && editingItem) {
+      await apiRequest(`/notes/${editingItem.id}`, { method: 'PUT', body: payload });
+    } else {
+      await apiRequest('/notes/', { method: 'POST', body: payload });
+    }
     setModalKind(null);
+    setEditingItem(null);
     await load();
     if (selected) await loadThread(selected.id);
   };
@@ -255,6 +274,8 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
       setSelected(null);
       setThread([]);
     }
+    setModalKind(null);
+    setEditingItem(null);
     await load();
   });
 
@@ -268,11 +289,10 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
         <View style={styles.splitStack}>
           <View style={styles.timeline}>
             {items.map((note) => (
-              <Pressable key={note.id} onPress={() => select(note)}>
+              <Pressable key={note.id} onPress={() => select(note)} onLongPress={() => handleLongPress(note)}>
                 <SectionCard style={selected?.id === note.id && styles.selectedCard}>
                   <View style={styles.rowTop}>
                     <Text style={styles.metaText}>{compactDateTime(note.created_at)}</Text>
-                    <DeleteButton onPress={() => remove(note)} />
                   </View>
                   <Text style={styles.bodyText}>{note.content}</Text>
                   <View style={styles.tagRow}>
@@ -292,13 +312,14 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
             {selected ? (
               <View style={styles.timeline}>
                 {thread.map((item) => (
-                  <SectionCard key={item.id} style={styles.innerCard}>
-                    <View style={styles.rowTop}>
-                      <Text style={styles.metaText}>{compactDateTime(item.created_at)}</Text>
-                      <DeleteButton onPress={() => remove(item)} />
-                    </View>
-                    <Text style={styles.bodyText}>{item.content}</Text>
-                  </SectionCard>
+                  <Pressable key={item.id} onLongPress={() => handleLongPress(item)}>
+                    <SectionCard style={styles.innerCard}>
+                      <View style={styles.rowTop}>
+                        <Text style={styles.metaText}>{compactDateTime(item.created_at)}</Text>
+                      </View>
+                      <Text style={styles.bodyText}>{item.content}</Text>
+                    </SectionCard>
+                  </Pressable>
                 ))}
               </View>
             ) : (
@@ -309,24 +330,35 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
       </ScrollView>
       <NoteModal
         visible={modalKind !== null}
-        title={modalKind === 'thread' ? '添加事件新进展' : '记录新想法'}
-        onClose={() => setModalKind(null)}
+        title={modalKind === 'edit' ? '编辑随记' : modalKind === 'thread' ? '添加事件新进展' : '记录新想法'}
+        onClose={() => { setModalKind(null); setEditingItem(null); }}
+        initialData={editingItem}
+        onDelete={editingItem ? () => remove(editingItem) : undefined}
         onSubmit={(form) => {
           const rootId = modalKind === 'thread' && selected
             ? (thread[0]?.parent_id || thread[0]?.id || selected.id)
             : null;
-          void addNote({ ...form, parent_id: rootId });
+          void addOrUpdateNote({ ...form, parent_id: rootId });
         }}
       />
     </ScreenShell>
   );
 }
 
-function NoteModal({ visible, title, onClose, onSubmit }: { visible: boolean; title: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => void }) {
+function NoteModal({ visible, title, onClose, onSubmit, initialData, onDelete }: { visible: boolean; title: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => void; initialData?: Item | null; onDelete?: () => void }) {
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [mood, setMood] = useState<typeof moodOptions[number] | null>(null);
   const [emotion, setEmotion] = useState('');
+
+  useEffect(() => {
+    if (visible) {
+      setContent(initialData?.content || '');
+      setTags(initialData?.tags ? String(initialData.tags).split(',').filter(Boolean) : []);
+      setMood(initialData?.mood_level ? moodByLevel(Number(initialData.mood_level)) : null);
+      setEmotion(initialData?.emotion || '');
+    }
+  }, [visible, initialData]);
 
   const submit = () => {
     if (!content.trim()) return;
@@ -369,7 +401,12 @@ function NoteModal({ visible, title, onClose, onSubmit }: { visible: boolean; ti
             ))}
           </View>
           <Field label="具体情绪" value={emotion} placeholder="如：很不爽" onChangeText={setEmotion} />
-          <PrimaryButton label="发布" icon="send" disabled={!content.trim()} onPress={submit} />
+          <View style={styles.formActions}>
+            {initialData && onDelete && (
+              <PrimaryButton label="删除" tone="plain" onPress={onDelete} />
+            )}
+            <PrimaryButton label={initialData ? "保存修改" : "发布"} icon="send" disabled={!content.trim()} onPress={submit} />
+          </View>
         </ScrollView>
       </Screen>
     </Modal>
@@ -651,8 +688,11 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
                     <Tag label={item.is_active ? '已启用' : '已停用'} tone={item.is_active ? 'green' : 'gray'} />
                     {item.category ? <Tag label={item.category} tone="blue" /> : null}
                   </View>
-                  <Text style={styles.metaText}>{money(item.amount)} / {cycles.find((cycle) => cycle.value === item.cycle)?.label || item.cycle} · 下次扣费 {item.next_billing_date}</Text>
+                  <Text style={styles.metaText}>{cycles.find((cycle) => cycle.value === item.cycle)?.label || item.cycle} · 下次扣费 {item.next_billing_date}</Text>
                   {item.notes ? <Text style={styles.bodyText}>{item.notes}</Text> : null}
+                </View>
+                <View style={{ justifyContent: 'center', alignItems: 'flex-end', marginLeft: 8 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: colors.danger }}>{money(item.amount)}</Text>
                 </View>
               </View>
             </SectionCard>

@@ -215,9 +215,6 @@ export const financeModules: ModuleConfig[] = [
       { key: 'notes', label: '备注', type: 'multiline' },
     ],
   },
-];
-
-export const growthModules: ModuleConfig[] = [
   {
     key: 'wishlists',
     title: '愿望',
@@ -283,3 +280,5 @@ export const growthModules: ModuleConfig[] = [
     ],
   },
 ];
+
+export const growthModules: ModuleConfig[] = [];

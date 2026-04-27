@@ -1554,6 +1554,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
+    borderColor: colors.border,
     ...shadow,
   },
   categoryHeader: {
@@ -1587,25 +1588,25 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   categoryStatValue: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '900',
     color: colors.text,
   },
   categoryProjectionRow: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   categoryProjectionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.textSoft,
   },
   categoryProjectionValue: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '900',
     color: '#2563eb',
   },
