@@ -113,14 +113,16 @@ function confirmRemove(label: string, onConfirm: () => void) {
   ]);
 }
 
-function SelectPills({ value, options, onChange, accent = colors.primary }: { value: string; options: string[]; onChange: (value: string) => void; accent?: string }) {
+function SelectPills({ value, options, onChange, accent = colors.primary }: { value: string; options: ({ label: string; value: string } | string)[]; onChange: (value: string) => void; accent?: string }) {
   return (
     <View style={styles.pills}>
-      {options.map((option) => {
-        const selected = option === value;
+      {options.map((opt) => {
+        const optValue = typeof opt === 'string' ? opt : opt.value;
+        const optLabel = typeof opt === 'string' ? opt : opt.label;
+        const selected = optValue === value;
         return (
-          <Pressable key={option} onPress={() => onChange(option)} style={[styles.pill, selected && { backgroundColor: accent, borderColor: accent }]}>
-            <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{option}</Text>
+          <Pressable key={optValue} onPress={() => onChange(optValue)} style={[styles.pill, selected && { backgroundColor: accent, borderColor: accent }]}>
+            <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{optLabel}</Text>
           </Pressable>
         );
       })}
@@ -617,8 +619,12 @@ export function WorkLogScreen({ onBack }: { onBack: () => void }) {
             <View style={{ height: spacing.lg }} />
             <Field label="活动名" value={form.activity_name} placeholder={type === 'activity' ? '例如：家长会、教研活动' : '例如：备课、批改作业'} onChangeText={(value) => setForm((cur) => ({ ...cur, activity_name: value }))} />
             <View style={styles.formRow}>
-              <DateField label="日期" value={form.event_date} onChangeText={(value) => setForm((cur) => ({ ...cur, event_date: value }))} />
-              <Field label="时间" value={form.event_time} placeholder="HH:mm" onChangeText={(value) => setForm((cur) => ({ ...cur, event_time: value }))} />
+              <View style={styles.flex}>
+                <DateField label="日期" value={form.event_date} onChangeText={(value) => setForm((cur) => ({ ...cur, event_date: value }))} />
+              </View>
+              <View style={styles.flex}>
+                <Field label="时间" value={form.event_time} placeholder="HH:mm" onChangeText={(value) => setForm((cur) => ({ ...cur, event_time: value }))} />
+              </View>
             </View>
             <Field label="地点" value={form.location} placeholder="会议室 / 高二3班" onChangeText={(value) => setForm((cur) => ({ ...cur, location: value }))} />
             <Field label="记录" value={form.record} multiline placeholder="记录今天的工作内容..." onChangeText={(value) => setForm((cur) => ({ ...cur, record: value }))} />
@@ -922,11 +928,17 @@ export function SubscriptionScreen({ onBack }: { onBack: () => void }) {
             <View style={{ height: spacing.lg }} />
             <Field label="订阅名称" value={form.name} placeholder="如：Spotify 家庭版" onChangeText={(value) => setForm((cur) => ({ ...cur, name: value }))} />
             <View style={styles.formRow}>
-              <Field label="金额" value={form.amount} keyboardType="decimal-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, amount: value }))} />
-              <DateField label="下次扣费日期" value={form.next_billing_date} onChangeText={(value) => setForm((cur) => ({ ...cur, next_billing_date: value }))} />
+              <View style={styles.flex}>
+                <Field label="金额" value={form.amount} keyboardType="decimal-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, amount: value }))} />
+              </View>
+              <View style={styles.flex}>
+                <DateField label="下次扣费日期" value={form.next_billing_date} onChangeText={(value) => setForm((cur) => ({ ...cur, next_billing_date: value }))} />
+              </View>
             </View>
-            <SegmentedControl value={form.cycle} onChange={(value) => setForm((cur) => ({ ...cur, cycle: value }))} options={cycles.map(({ label, value }) => ({ label, value }))} />
-            <SegmentedControl value={form.is_active} onChange={(value) => setForm((cur) => ({ ...cur, is_active: value }))} options={[{ label: '启用', value: 'true' }, { label: '停用', value: 'false' }]} />
+            <Text style={styles.formLabel}>周期</Text>
+            <SelectPills value={form.cycle} onChange={(value) => setForm((cur) => ({ ...cur, cycle: value }))} options={cycles} accent="#0D9488" />
+            <Text style={styles.formLabel}>状态</Text>
+            <SelectPills value={form.is_active} onChange={(value) => setForm((cur) => ({ ...cur, is_active: value }))} options={[{ label: '启用', value: 'true' }, { label: '停用', value: 'false' }]} accent="#0D9488" />
             <Field label="分类" value={form.category} placeholder="视频 / 音乐 / 软件" onChangeText={(value) => setForm((cur) => ({ ...cur, category: value }))} />
             <Field label="备注" value={form.notes} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
             <View style={styles.formActions}>
@@ -1060,16 +1072,25 @@ export function AssetScreen({ onBack }: { onBack: () => void }) {
             <View style={{ height: spacing.lg }} />
             <Field label="物品名称" value={form.name} onChangeText={(value) => setForm((cur) => ({ ...cur, name: value }))} />
             <Text style={styles.formLabel}>分类</Text>
-            <SelectPills value={form.category} options={assetCategories} onChange={(value) => setForm((cur) => ({ ...cur, category: value }))} accent="#4F46E5" />
+            <SelectPills value={form.category} options={assetCategories} onChange={(value) => setForm((cur) => ({ ...cur, category: value }))} accent="#CA8A04" />
             <Text style={styles.formLabel}>状态</Text>
-            <SelectPills value={form.status} options={Object.keys(assetStatus)} onChange={(value) => setForm((cur) => ({ ...cur, status: value }))} accent="#4F46E5" />
+            <SelectPills value={form.status} options={Object.keys(assetStatus).map((key) => ({ label: assetStatus[key as keyof typeof assetStatus], value: key }))} onChange={(value) => setForm((cur) => ({ ...cur, status: value }))} accent="#CA8A04" />
             <View style={styles.formRow}>
-              <Field label="购入价格" value={form.price} keyboardType="decimal-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, price: value }))} />
-              <DateField label="购入日期" value={form.purchase_date} onChangeText={(value) => setForm((cur) => ({ ...cur, purchase_date: value }))} />
+              <View style={styles.flex}>
+                <Field label="购入价格" value={form.price} keyboardType="decimal-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, price: value }))} />
+              </View>
+              <View style={styles.flex}>
+                <DateField label="购入日期" value={form.purchase_date} onChangeText={(value) => setForm((cur) => ({ ...cur, purchase_date: value }))} />
+              </View>
             </View>
             <View style={styles.formRow}>
-              <Field label="预计寿命数值" value={form.lifespan_value} keyboardType="number-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, lifespan_value: value }))} />
-              <SegmentedControl value={form.lifespan_type} onChange={(value) => setForm((cur) => ({ ...cur, lifespan_type: value }))} options={[{ label: '年', value: 'years' }, { label: '月', value: 'months' }, { label: '天', value: 'days' }]} />
+              <View style={styles.flex}>
+                <Field label="预计寿命数值" value={form.lifespan_value} keyboardType="number-pad" onChangeText={(value) => setForm((cur) => ({ ...cur, lifespan_value: value }))} />
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.formLabel}>寿命单位</Text>
+                <SelectPills value={form.lifespan_type} onChange={(value) => setForm((cur) => ({ ...cur, lifespan_type: value }))} options={[{ label: '年', value: 'years' }, { label: '月', value: 'months' }, { label: '天', value: 'days' }]} accent="#CA8A04" />
+              </View>
             </View>
             <Field label="备注" value={form.notes} multiline onChangeText={(value) => setForm((cur) => ({ ...cur, notes: value }))} />
             <View style={styles.formActions}>
@@ -1501,7 +1522,7 @@ const styles = StyleSheet.create({
   miniMood: { alignItems: 'center', borderRadius: 9999, height: 40, justifyContent: 'center', width: 40 },
   input: { backgroundColor: colors.surfaceMuted, borderRadius: radius.lg, color: colors.text, fontSize: 16, minHeight: 52, paddingHorizontal: spacing.lg },
   textArea: { minHeight: 150, paddingTop: spacing.md },
-  formRow: { gap: spacing.md },
+  formRow: { flexDirection: 'row', gap: spacing.md },
   formActions: { flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end', marginTop: spacing.xl, paddingBottom: spacing.md },
   group: { gap: spacing.md },
   groupTitle: { color: colors.textSoft, fontSize: 14, fontWeight: '900' },
