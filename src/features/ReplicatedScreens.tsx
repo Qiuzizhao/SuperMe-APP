@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Asset } from 'expo-asset';
+import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -146,6 +148,22 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
   const [level, setLevel] = useState(3);
   const [emotion, setEmotion] = useState('');
   const [content, setContent] = useState('');
+  const [moodAssetsReady, setMoodAssetsReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const preloadMoodAssets = async () => {
+      try {
+        await Asset.loadAsync(Object.values(MOOD_IMAGES));
+      } finally {
+        if (mounted) setMoodAssetsReady(true);
+      }
+    };
+    void preloadMoodAssets();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const addMood = async () => {
     const mood = moodByLevel(level);
@@ -171,7 +189,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <PrimaryButton label="记录此刻" icon="add" onPress={() => setModalOpen(true)} />
-        <MoodStaff moods={items} />
+        <MoodStaff moods={items} moodAssetsReady={moodAssetsReady} />
         <StateView loading={loading} error={error} onRetry={load} />
         <View style={styles.timeline}>
           {items.map((item) => {
@@ -180,7 +198,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
               <SectionCard key={item.id}>
                 <View style={styles.rowTop}>
                   <View style={styles.row}>
-                    <Image source={mood.emoji} style={styles.emojiImage} />
+                    {moodAssetsReady ? <ExpoImage source={mood.emoji} style={styles.emojiImage} contentFit="contain" transition={0} cachePolicy="memory-disk" /> : null}
                     <View>
                       <Text style={styles.itemTitle}>{item.mood_label}</Text>
                       <Text style={styles.metaText}>{compactDateTime(item.created_at)}</Text>
@@ -202,7 +220,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
             <View style={styles.moodPicker}>
               {moodOptions.map((mood) => (
                 <Pressable key={mood.level} onPress={() => setLevel(mood.level)} style={[styles.moodButton, level === mood.level && styles.moodButtonSelected]}>
-                  <Image source={mood.emoji} style={styles.bigEmojiImage} />
+                  {moodAssetsReady ? <ExpoImage source={mood.emoji} style={styles.bigEmojiImage} contentFit="contain" transition={0} cachePolicy="memory-disk" /> : null}
                   <Text style={styles.moodLabel}>{mood.label}</Text>
                 </Pressable>
               ))}
@@ -217,7 +235,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function MoodStaff({ moods }: { moods: Item[] }) {
+function MoodStaff({ moods, moodAssetsReady }: { moods: Item[]; moodAssetsReady: boolean }) {
   const data = [...moods].reverse().slice(-24);
   return (
     <SectionCard style={styles.staffCard}>
@@ -233,7 +251,7 @@ function MoodStaff({ moods }: { moods: Item[] }) {
               const top = 20 + (5 - Number(item.mood_level)) * 34;
               return (
                 <View key={item.id} style={[styles.staffPoint, { left: index * 54 + 18, top }]}>
-                  <Image source={mood.emoji} style={styles.staffEmojiImage} />
+                  {moodAssetsReady ? <ExpoImage source={mood.emoji} style={styles.staffEmojiImage} contentFit="contain" transition={0} cachePolicy="memory-disk" /> : null}
                   <Text style={styles.staffTime}>{compactDateTime(item.created_at).replace(' ', '\n')}</Text>
                 </View>
               );
