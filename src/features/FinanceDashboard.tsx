@@ -1,16 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Alert, Platform, RefreshControl, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Dimensions, Modal } from 'react-native';
-import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
-import { BottomSheetModal, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { BottomSheetBackdrop, BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Dimensions, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
+import Svg, { G, Path } from 'react-native-svg';
 
 import { DateField, Header, IconButton, PrimaryButton, Screen, SegmentedControl, StateView } from '@/src/components/ui';
 import { apiRequest } from '@/src/lib/api';
-import { colors, radius, spacing, shadow } from '@/src/theme';
+import { colors, radius, shadow, spacing } from '@/src/theme';
+import { normalizeIncomeConfig } from '../utils/incomeConfig';
 import { CrudScreen } from './CrudScreen';
 import { financeModules } from './moduleConfig';
-import { normalizeIncomeConfig } from '../utils/incomeConfig';
 import { AssetScreen, SubscriptionScreen } from './ReplicatedScreens';
 
 const screenWidth = Dimensions.get('window').width;
@@ -47,6 +48,8 @@ type FinanceBill = {
   name: string;
   categories: FinanceCategory[];
 };
+
+type ReportType = 'weekly' | 'monthly' | 'yearly' | 'custom';
 
 const getTagHexColor = (tag: string) => {
   const hash = tag.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
@@ -160,10 +163,12 @@ function todayString(date: Date) {
 
 function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
-  const [finances, setFinances] = useState<FinanceItem[]>([]);
+  const [financesByType, setFinancesByType] = useState<Record<'expense' | 'income', FinanceItem[]>>({ expense: [], income: [] });
+  const [loadedTabs, setLoadedTabs] = useState<Record<'expense' | 'income', boolean>>({ expense: false, income: false });
   const [expenseTree, setExpenseTree] = useState<FinanceBill[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listLoading, setListLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
@@ -210,15 +215,18 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
     setIncomeCategories(Array.isArray(configs?.finance_income_categories) ? configs.finance_income_categories : []);
   }, []);
 
-  const loadFinances = useCallback(async () => {
+  const loadFinances = useCallback(async (tab: 'expense' | 'income' = activeTab, showListLoader = false) => {
     setError(null);
+    if (showListLoader) setListLoading(true);
     try {
-      const data = await apiRequest<FinanceItem[]>(`/finances/?transaction_type=${activeTab}&limit=1000`);
-      setFinances(Array.isArray(data) ? data : []);
+      const data = await apiRequest<FinanceItem[]>(`/finances/?transaction_type=${tab}&limit=1000`);
+      setFinancesByType((current) => ({ ...current, [tab]: Array.isArray(data) ? data : [] }));
+      setLoadedTabs((current) => ({ ...current, [tab]: true }));
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载账单失败');
     } finally {
       setLoading(false);
+      setListLoading(false);
       setRefreshing(false);
     }
   }, [activeTab]);
@@ -228,7 +236,6 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
   }, [loadStaticData]);
 
   useEffect(() => {
-    setLoading(true);
     setEditingId(null);
     setBillObj(null);
     setCategoryObj(null);
@@ -236,8 +243,10 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
     setIncomeCategory('');
     setTransactionDate(todayDate());
     setBelongMonth(currentMonthValue());
-    void loadFinances();
-  }, [activeTab, loadFinances]);
+    if (!loadedTabs[activeTab]) {
+      void loadFinances(activeTab, !loading);
+    }
+  }, [activeTab, loadedTabs, loadFinances, loading]);
 
   useEffect(() => {
     setSelectedReportCategory(null);
@@ -350,6 +359,8 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
     ]);
   };
 
+  const finances = financesByType[activeTab];
+  const hasCurrentTabLoaded = loadedTabs[activeTab];
   const totalAmount = useMemo(() => finances.reduce((sum, item) => sum + Number(item.amount || 0), 0), [finances]);
 
   const filteredFinances = useMemo(() => {
@@ -408,7 +419,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
     return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, value }));
   }, [activeTab, filteredFinances, groupKey, reportType, selectedReportCategory]);
 
-  if (loading || error) {
+  if ((loading || error) && !hasCurrentTabLoaded) {
     return (
       <Screen>
         <Header title="账单" action={<IconButton name="chevron-back" label="返回模块列表" soft onPress={onBack} />} />
@@ -426,7 +437,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
       />
       <ScrollView
         contentContainerStyle={styles.financeContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadFinances(); }} />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadFinances(activeTab); }} />}>
         <SegmentedControl value={activeTab} onChange={(value) => setActiveTab(value as 'expense' | 'income')} options={[{ label: '支出清单', value: 'expense' }, { label: '收入清单', value: 'income' }]} />
 
         <LinearGradient
@@ -449,12 +460,13 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
         </LinearGradient>
 
         <View style={styles.billList}>
-          {displayFinances.length === 0 ? (
+          <StateView loading={listLoading} error={hasCurrentTabLoaded ? error : null} onRetry={() => loadFinances(activeTab, true)} />
+          {!listLoading && displayFinances.length === 0 ? (
             <View style={styles.emptyBillCard}>
               <Text style={styles.emptyBillIcon}>💸</Text>
               <Text style={styles.emptyBillText}>暂无账单记录</Text>
             </View>
-          ) : (
+          ) : !listLoading ? (
             Object.entries(
               displayFinances.reduce<Record<string, FinanceItem[]>>((groups, item) => {
                 const dateKey = item.transaction_date || '未知日期';
@@ -470,7 +482,7 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
                   {items.map((item) => {
                     const isEditing = editingId === item.id;
                     return (
-                      <Pressable key={item.id} style={styles.billCard} onLongPress={() => startEdit(item)}>
+                      <Pressable key={item.id} style={({ pressed }) => [styles.billCard, pressed && styles.pressed]} onLongPress={() => startEdit(item)}>
                         <View style={styles.billCardHeader}>
                           <View style={[styles.billIconCircle, { backgroundColor: activeTab === 'expense' ? '#ffe4e6' : '#d1fae5' }]}>
                             <Text style={styles.billIconEmoji}>{activeTab === 'expense' ? '💸' : '💰'}</Text>
@@ -519,11 +531,11 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
                   })}
                 </View>
               ))
-          )}
+          ) : null}
         </View>
       </ScrollView>
       
-      <Pressable style={styles.fab} onPress={() => bottomSheetRef.current?.present()}>
+      <Pressable style={({ pressed }) => [styles.fab, pressed && styles.pressed]} onPress={() => bottomSheetRef.current?.present()}>
         <LinearGradient
           colors={activeTab === 'expense' ? ['#f43f5e', '#be123c'] : ['#10b981', '#047857']}
           style={styles.fabGradient}
@@ -588,28 +600,24 @@ function FinanceRecordsScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
+
 function FinanceReportScreen({ onBack }: { onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
+  const [viewMode, setViewMode] = useState<'report' | 'calendar'>('report');
   const [finances, setFinances] = useState<FinanceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  const [reportType, setReportType] = useState('monthly');
-  const [expenseChartLevel, setExpenseChartLevel] = useState('category');
-  const [chartType, setChartType] = useState('proportion');
-  const [proportionType, setProportionType] = useState('donut');
-  const [trendType, setTrendType] = useState('line');
+  const [reportType, setReportType] = useState<ReportType>('monthly');
   const [reportWeek, setReportWeek] = useState(currentWeekValue());
   const [reportMonth, setReportMonth] = useState(currentMonthValue());
   const [reportYear, setReportYear] = useState(String(new Date().getFullYear()));
-  const [customStartDate, setCustomStartDate] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return todayString(date);
-  });
+  const [customStartDate, setCustomStartDate] = useState(() => `${currentMonthValue()}-01`);
   const [customEndDate, setCustomEndDate] = useState(todayDate());
+  const [expenseChartLevel, setExpenseChartLevel] = useState<'category' | 'subcategory'>('category');
+  const [chartType, setChartType] = useState<'donut' | 'area'>('donut');
   const [selectedReportCategory, setSelectedReportCategory] = useState<string | null>(null);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 
   const loadFinances = useCallback(async () => {
     setError(null);
@@ -618,11 +626,10 @@ function FinanceReportScreen({ onBack }: { onBack: () => void }) {
         apiRequest<FinanceItem[]>('/finances/?transaction_type=expense&limit=2000'),
         apiRequest<FinanceItem[]>('/finances/?transaction_type=income&limit=2000'),
       ]);
-      const allFinances = [
+      setFinances([
         ...(Array.isArray(expenseData) ? expenseData : []),
-        ...(Array.isArray(incomeData) ? incomeData : [])
-      ];
-      setFinances(allFinances);
+        ...(Array.isArray(incomeData) ? incomeData : []),
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载账单失败');
     } finally {
@@ -640,83 +647,50 @@ function FinanceReportScreen({ onBack }: { onBack: () => void }) {
     setSelectedReportCategory(null);
   }, [activeTab, reportType, reportWeek, reportMonth, reportYear, customStartDate, customEndDate, expenseChartLevel]);
 
-  const tabFinances = useMemo(() => {
-    return finances.filter(item => item.transaction_type === activeTab);
-  }, [finances, activeTab]);
-
-  const filteredFinances = useMemo(() => {
-    return tabFinances.filter((item) => {
-      const date = item.transaction_date;
-      if (!date) return true;
-      if (reportType === 'weekly') {
-        const range = weekRange(reportWeek);
-        if (!range) return true;
-        return date >= range.start && date <= range.end;
-      }
-      if (reportType === 'monthly') return date.startsWith(reportMonth);
-      if (reportType === 'yearly') return date.startsWith(reportYear);
-      if (reportType === 'custom') return (!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate);
-      return true;
-    });
-  }, [tabFinances, reportType, reportWeek, reportMonth, reportYear, customStartDate, customEndDate]);
-
-  const globalFilteredFinances = useMemo(() => {
-    return finances.filter((item) => {
-      const date = item.transaction_date;
-      if (!date) return true;
-      if (reportType === 'weekly') {
-        const range = weekRange(reportWeek);
-        if (!range) return true;
-        return date >= range.start && date <= range.end;
-      }
-      if (reportType === 'monthly') return date.startsWith(reportMonth);
-      if (reportType === 'yearly') return date.startsWith(reportYear);
-      if (reportType === 'custom') return (!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate);
-      return true;
-    });
-  }, [finances, reportType, reportWeek, reportMonth, reportYear, customStartDate, customEndDate]);
-
-  const totalExpense = useMemo(() => globalFilteredFinances.filter(i => i.transaction_type === 'expense').reduce((sum, item) => sum + Number(item.amount || 0), 0), [globalFilteredFinances]);
-  const totalIncome = useMemo(() => globalFilteredFinances.filter(i => i.transaction_type === 'income').reduce((sum, item) => sum + Number(item.amount || 0), 0), [globalFilteredFinances]);
+  const periodFinances = useMemo(() => finances.filter((item) => {
+    const date = item.transaction_date || '';
+    if (!date) return false;
+    if (reportType === 'weekly') {
+      const range = weekRange(reportWeek);
+      return range ? date >= range.start && date <= range.end : false;
+    }
+    if (reportType === 'yearly') return date.startsWith(reportYear);
+    if (reportType === 'custom') return (!customStartDate || date >= customStartDate) && (!customEndDate || date <= customEndDate);
+    return date.startsWith(reportMonth);
+  }), [customEndDate, customStartDate, finances, reportMonth, reportType, reportWeek, reportYear]);
+  const tabFinances = useMemo(() => periodFinances.filter((item) => item.transaction_type === activeTab), [periodFinances, activeTab]);
+  const totalExpense = useMemo(() => periodFinances.filter((item) => item.transaction_type === 'expense').reduce((sum, item) => sum + Number(item.amount || 0), 0), [periodFinances]);
+  const totalIncome = useMemo(() => periodFinances.filter((item) => item.transaction_type === 'income').reduce((sum, item) => sum + Number(item.amount || 0), 0), [periodFinances]);
+  const filteredTotalAmount = tabFinances.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   const groupKey = useCallback((item: FinanceItem) => {
     if (activeTab === 'expense') {
-      if (expenseChartLevel === 'bill') return item.bill || item.category || '未分类';
       if (expenseChartLevel === 'subcategory') return item.subcategory || item.category || '未分类';
-      return item.category || '未分类';
+      return item.category || item.bill || '未分类';
     }
     return item.category || '未分类';
   }, [activeTab, expenseChartLevel]);
 
-  const filteredTotalAmount = filteredFinances.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-
   const categoryData = useMemo(() => {
-    const grouped = new Map<string, number>();
-    filteredFinances.forEach((item) => {
+    const grouped = new Map<string, { value: number; count: number; parent?: string }>();
+    tabFinances.forEach((item) => {
       const key = groupKey(item);
-      grouped.set(key, (grouped.get(key) || 0) + Number(item.amount || 0));
+      const parent = expenseChartLevel === 'subcategory' ? item.category || item.bill || undefined : item.bill || item.category || undefined;
+      const current = grouped.get(key) || { value: 0, count: 0, parent };
+      grouped.set(key, { value: current.value + Number(item.amount || 0), count: current.count + 1, parent: current.parent });
     });
     return [...grouped.entries()]
-      .map(([name, value]) => ({ name, value }))
+      .map(([name, data]) => ({ name, value: data.value, count: data.count, parent: data.parent }))
       .sort((a, b) => b.value - a.value);
-  }, [filteredFinances, groupKey]);
+  }, [expenseChartLevel, groupKey, tabFinances]);
 
-  const trendData = useMemo(() => {
-    const scoped = selectedReportCategory ? filteredFinances.filter((item) => groupKey(item) === selectedReportCategory) : filteredFinances;
-    const grouped = new Map<string, number>();
-    scoped.forEach((item) => {
-      const key = activeTab === 'income'
-        ? item.belong_month || item.transaction_date.slice(0, 7)
-        : (reportType === 'yearly' ? item.transaction_date.slice(0, 7) : item.transaction_date);
-      grouped.set(key, (grouped.get(key) || 0) + Number(item.amount || 0));
-    });
-    return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, value }));
-  }, [activeTab, filteredFinances, groupKey, reportType, selectedReportCategory]);
+  const calendarData = useMemo(() => buildMonthCalendar(reportMonth, periodFinances, activeTab), [activeTab, periodFinances, reportMonth]);
+  const dailyAverage = calendarData.activeDays > 0 ? filteredTotalAmount / calendarData.activeDays : 0;
 
   if (loading || error) {
     return (
       <Screen>
-        <Header title="报表" action={<IconButton name="chevron-back" label="返回模块列表" soft onPress={onBack} />} />
+        <Header title="报表" action={<IconButton name="chevron-back" label="返回" soft onPress={onBack} />} />
         <StateView loading={loading} error={error} onRetry={loadFinances} />
       </Screen>
     );
@@ -725,68 +699,90 @@ function FinanceReportScreen({ onBack }: { onBack: () => void }) {
   return (
     <Screen>
       <Header
-        title="报表"
-        subtitle="收支占比与趋势分析"
-        action={<IconButton name="chevron-back" label="返回模块列表" soft onPress={onBack} />}
+        title="财务报表"
+        subtitle={formatReportTitle(reportType, reportWeek, reportMonth, reportYear, customStartDate, customEndDate)}
+        action={<IconButton name="chevron-back" label="返回" soft onPress={onBack} />}
       />
-      <ScrollView
-        contentContainerStyle={styles.financeContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadFinances(); }} />}
-      >
-        <View style={styles.grid}>
-          <View style={styles.statCardSmallRow}>
-            <Pressable
-              style={[
-                styles.statCardSmall,
-                activeTab === 'income' && { borderColor: '#16a34a', backgroundColor: '#f0fdf4' }
-              ]}
-              onPress={() => setActiveTab('income')}
-            >
-              <Text style={styles.statLabelSmall}>总收入</Text>
-              <Text style={[styles.statValueSmall, { color: '#16a34a' }]}>+{formatCurrency(totalIncome)}</Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.statCardSmall,
-                activeTab === 'expense' && { borderColor: '#dc2626', backgroundColor: '#fef2f2' }
-              ]}
-              onPress={() => setActiveTab('expense')}
-            >
-              <Text style={styles.statLabelSmall}>总支出</Text>
-              <Text style={[styles.statValueSmall, { color: '#dc2626' }]}>-{formatCurrency(totalExpense)}</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <FinanceReport
-          activeTab={activeTab}
-          reportType={reportType}
-          setReportType={setReportType}
-          reportWeek={reportWeek}
-          setReportWeek={setReportWeek}
-          reportMonth={reportMonth}
-          setReportMonth={setReportMonth}
-          reportYear={reportYear}
-          setReportYear={setReportYear}
-          customStartDate={customStartDate}
-          setCustomStartDate={setCustomStartDate}
-          customEndDate={customEndDate}
-          setCustomEndDate={setCustomEndDate}
-          expenseChartLevel={expenseChartLevel}
-          setExpenseChartLevel={setExpenseChartLevel}
-          chartType={chartType}
-          setChartType={setChartType}
-          proportionType={proportionType}
-          setProportionType={setProportionType}
-          trendType={trendType}
-          setTrendType={setTrendType}
-          categoryData={categoryData}
-          trendData={trendData}
-          selectedReportCategory={selectedReportCategory}
-          setSelectedReportCategory={setSelectedReportCategory}
-          filteredTotalAmount={filteredTotalAmount}
+      <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md }}>
+        <SegmentedControl 
+          value={viewMode} 
+          onChange={(value) => setViewMode(value as 'report' | 'calendar')} 
+          options={[
+            { label: '报表分析', value: 'report' },
+            { label: '日历视图', value: 'calendar' }
+          ]} 
         />
+      </View>
+      <ScrollView
+        contentContainerStyle={[styles.financeContent, { paddingTop: 0 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadFinances(); }} tintColor={colors.primary} />}
+      >
+        <Pressable 
+          onPress={() => setMonthPickerOpen(true)}
+          style={({ pressed }) => [
+            styles.bentoCardLarge, 
+            { backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, minHeight: 64, aspectRatio: undefined, height: 'auto', marginBottom: spacing.xs },
+            pressed && styles.pressed
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <View style={[styles.bentoIconWrapper, { backgroundColor: colors.primary + '15', width: 40, height: 40, borderRadius: 14 }]}>
+              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            </View>
+            <View style={{ gap: 2 }}>
+              <Text style={{ fontSize: 12, color: colors.textSoft, fontWeight: '700' }}>当前统计周期</Text>
+              <Text style={{ fontSize: 16, color: colors.text, fontWeight: '900' }}>{formatReportTitle(reportType, reportWeek, reportMonth, reportYear, customStartDate, customEndDate)}</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+        </Pressable>
+
+        {viewMode === 'report' ? (
+          <FinanceReport
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            reportMonth={reportMonth}
+            totalExpense={totalExpense}
+            totalIncome={totalIncome}
+            expenseChartLevel={expenseChartLevel}
+            setExpenseChartLevel={setExpenseChartLevel}
+            chartType={chartType}
+            setChartType={setChartType}
+            categoryData={categoryData}
+            selectedReportCategory={selectedReportCategory}
+            setSelectedReportCategory={setSelectedReportCategory}
+            filteredTotalAmount={filteredTotalAmount}
+          />
+        ) : (
+          <FinanceCalendarView
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            calendarData={calendarData}
+            totalAmount={filteredTotalAmount}
+            dailyAverage={dailyAverage}
+            reportMonth={reportMonth}
+          />
+        )}
       </ScrollView>
+      <PeriodPickerSheet
+        visible={monthPickerOpen}
+        reportType={reportType}
+        reportWeek={reportWeek}
+        reportMonth={reportMonth}
+        reportYear={reportYear}
+        customStartDate={customStartDate}
+        customEndDate={customEndDate}
+        onClose={() => setMonthPickerOpen(false)}
+        onConfirm={(next: { type: ReportType; week: string; month: string; year: string; start: string; end: string }) => {
+          setReportType(next.type);
+          setReportWeek(next.week);
+          setReportMonth(next.month);
+          setReportYear(next.year);
+          setCustomStartDate(next.start);
+          setCustomEndDate(next.end);
+          setMonthPickerOpen(false);
+        }}
+      />
     </Screen>
   );
 }
@@ -816,7 +812,7 @@ function PillSelector({
           {options.map((option) => {
             const selected = option === value;
             return (
-              <Pressable key={option} onPress={() => onChange(option)} style={[styles.financePill, selected && { backgroundColor: accent, borderColor: accent }]}>
+              <Pressable key={option} onPress={() => onChange(option)} style={({ pressed }) => [styles.financePill, selected && { backgroundColor: accent, borderColor: accent }, pressed && styles.pressed]}>
                 <Text style={[styles.financePillText, selected && styles.financePillTextSelected]}>{option}</Text>
               </Pressable>
             );
@@ -829,190 +825,697 @@ function PillSelector({
 
 function FinanceReport({
   activeTab,
-  reportType,
-  setReportType,
-  reportWeek,
-  setReportWeek,
-  reportMonth,
-  setReportMonth,
-  reportYear,
-  setReportYear,
-  customStartDate,
-  setCustomStartDate,
-  customEndDate,
-  setCustomEndDate,
+  setActiveTab,
+  totalExpense,
+  totalIncome,
   expenseChartLevel,
   setExpenseChartLevel,
   chartType,
   setChartType,
-  proportionType,
-  setProportionType,
-  trendType,
-  setTrendType,
   categoryData,
-  trendData,
   selectedReportCategory,
   setSelectedReportCategory,
   filteredTotalAmount,
 }: any) {
-  const chartDataset = trendData.length > 0 ? {
-    labels: trendData.slice(-8).map((item: any) => String(item.date).slice(-5)),
-    datasets: [{ data: trendData.slice(-8).map((item: any) => Number(item.value || 0)) }],
-  } : { labels: ['无数据'], datasets: [{ data: [0] }] };
+  const levelLabel = expenseChartLevel === 'subcategory' ? '切换大类' : '切换小类';
+  const centerTitle = activeTab === 'expense'
+    ? (expenseChartLevel === 'subcategory' ? '支出小类' : '支出大类')
+    : (expenseChartLevel === 'subcategory' ? '收入小类' : '收入大类');
+  const activeAmountColor = activeTab === 'income' ? colors.success : colors.danger;
+  const parentStats = new Map<string, { value: number; count: number }>();
+  categoryData.forEach((item: any) => {
+    const parent = item.parent || item.name;
+    const current = parentStats.get(parent) || { value: 0, count: 0 };
+    parentStats.set(parent, { value: current.value + item.value, count: current.count + item.count });
+  });
+  let renderedParent = '';
 
-  const pieData = categoryData.map((item: any) => {
-    const percent = filteredTotalAmount > 0 ? (item.value / filteredTotalAmount) * 100 : 0;
+  return (
+    <View style={{ gap: spacing.md }}>
+      <View style={{ flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' }}>
+        <Pressable 
+          onPress={() => setActiveTab('expense')}
+          style={({ pressed }) => [
+            styles.bentoCard,
+            { backgroundColor: activeTab === 'expense' ? colors.danger + '15' : colors.surface, padding: spacing.md, justifyContent: 'center', aspectRatio: 1.22 },
+            pressed && styles.pressed
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs }}>
+            <View style={[styles.bentoIconWrapper, { backgroundColor: activeTab === 'expense' ? colors.danger + '25' : colors.surfaceMuted, width: 32, height: 32, borderRadius: 11 }]}>
+              <Text style={{ fontSize: 14 }}>💸</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: activeTab === 'expense' ? colors.danger : colors.textSoft }}>总支出</Text>
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: '900', color: activeTab === 'expense' ? colors.danger : colors.text }}>{formatCurrency(totalExpense)}</Text>
+        </Pressable>
+
+        <Pressable 
+          onPress={() => setActiveTab('income')}
+          style={({ pressed }) => [
+            styles.bentoCard,
+            { backgroundColor: activeTab === 'income' ? colors.success + '15' : colors.surface, padding: spacing.md, justifyContent: 'center', aspectRatio: 1.22 },
+            pressed && styles.pressed
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs }}>
+            <View style={[styles.bentoIconWrapper, { backgroundColor: activeTab === 'income' ? colors.success + '25' : colors.surfaceMuted, width: 32, height: 32, borderRadius: 11 }]}>
+              <Text style={{ fontSize: 14 }}>💰</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: activeTab === 'income' ? colors.success : colors.textSoft }}>总收入</Text>
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: '900', color: activeTab === 'income' ? colors.success : colors.text }}>{formatCurrency(totalIncome)}</Text>
+        </Pressable>
+      </View>
+
+      <View style={[styles.bentoCardPanel, { backgroundColor: colors.surface, padding: spacing.lg }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>结构分析</Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable onPress={() => setExpenseChartLevel(expenseChartLevel === 'subcategory' ? 'category' : 'subcategory')} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.surfaceMuted }, pressed && styles.pressed]}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSoft }}>{levelLabel}</Text>
+            </Pressable>
+            <Pressable onPress={() => setChartType(chartType === 'donut' ? 'area' : 'donut')} style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.surfaceMuted }, pressed && styles.pressed]}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSoft }}>{chartType === 'donut' ? '切换面积' : '切换环形'}</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {chartType === 'donut' ? (
+          <DonutBreakdown
+            data={categoryData}
+            total={filteredTotalAmount}
+            centerTitle={centerTitle}
+            activeTab={activeTab}
+            onToggleLevel={() => setExpenseChartLevel(expenseChartLevel === 'subcategory' ? 'category' : 'subcategory')}
+          />
+        ) : (
+          <TreemapBreakdown data={categoryData} total={filteredTotalAmount} />
+        )}
+      </View>
+
+      <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
+        {categoryData.length === 0 ? (
+          <View style={styles.emptyBillCard}>
+            <Text style={styles.emptyBillIcon}>📊</Text>
+            <Text style={styles.emptyBillText}>暂无报表数据</Text>
+          </View>
+        ) : categoryData.map((item: any) => {
+          const percent = filteredTotalAmount > 0 ? item.value / filteredTotalAmount : 0;
+          const selected = selectedReportCategory === item.name;
+          const parent = item.parent || item.name;
+          const parentSummary = parentStats.get(parent);
+          const parentPercent = parentSummary && filteredTotalAmount > 0 ? parentSummary.value / filteredTotalAmount : 0;
+          const showParent = activeTab === 'expense' && expenseChartLevel === 'subcategory' && parent !== renderedParent;
+          renderedParent = parent;
+          return (
+            <React.Fragment key={item.name}>
+              {showParent && parentSummary ? (
+                <Text style={{ fontSize: 13, fontWeight: '800', color: colors.muted, marginLeft: spacing.sm, marginTop: spacing.sm, marginBottom: 2 }}>
+                  {parent} {(parentPercent * 100).toFixed(1)}% · {formatCurrency(parentSummary.value)}
+                </Text>
+              ) : null}
+              <Pressable 
+                onPress={() => setSelectedReportCategory(selected ? null : item.name)} 
+                style={({ pressed }) => [
+                  { 
+                    backgroundColor: selected ? colors.primary + '15' : colors.surface, 
+                    borderRadius: radius.xl, 
+                    padding: spacing.md, 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    borderWidth: 1, 
+                    borderColor: selected ? colors.primary + '30' : 'rgba(0,0,0,0.03)' 
+                  },
+                  pressed && styles.pressed
+                ]}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: getTagSoftColor(item.name), justifyContent: 'center', alignItems: 'center', marginRight: spacing.md }}>
+                  <Ionicons name={getCategoryIcon(item.name)} size={20} color={getTagHexColor(item.name)} />
+                </View>
+                <View style={{ flex: 1, marginRight: spacing.md }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: colors.text }}>{item.name}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.muted }}>{(percent * 100).toFixed(1)}%</Text>
+                  </View>
+                  <View style={{ height: 6, backgroundColor: colors.surfaceMuted, borderRadius: 3, overflow: 'hidden' }}>
+                    <View style={{ height: '100%', width: `${Math.max(2, percent * 100)}%`, backgroundColor: getTagHexColor(item.name), borderRadius: 3 }} />
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: activeAmountColor }}>{formatCurrency(item.value)}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.muted, marginTop: 2 }}>{item.count}笔</Text>
+                </View>
+              </Pressable>
+            </React.Fragment>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function DonutBreakdown({
+  data,
+  total,
+  centerTitle,
+  activeTab,
+  onToggleLevel,
+}: {
+  data: any[];
+  total: number;
+  centerTitle: string;
+  activeTab: 'expense' | 'income';
+  onToggleLevel: () => void;
+}) {
+  const stageWidth = screenWidth - spacing.lg * 4;
+  const size = Math.min(stageWidth - 80, 240);
+  const offsetX = Math.max(0, (stageWidth - size) / 2);
+  const center = size / 2;
+  const radiusValue = size / 2 - 32;
+  const strokeWidth = 28;
+  const visibleData = data.length > 0 ? data : [{ name: '暂无', value: 1 }];
+  const chartTotal = total > 0 ? total : 1;
+  let cursor = -90;
+  const segments = visibleData.map((item, index) => {
+    const percent = chartTotal > 0 ? (Number(item.value || 0) / chartTotal) * 100 : 0;
+    // 如果小于0.5%，在环形图上强制给定一个极小的值，以保证能看到一条细线
+    let angle = (percent / 100) * 360;
+    if (percent > 0 && angle < 0.5) {
+        angle = 0.5; 
+    }
+    const start = cursor;
+    const end = cursor + angle;
+    cursor = end;
     return {
-      name: `${item.name} ${percent.toFixed(1)}%`,
-      population: Math.max(0.1, percent),
-      color: getTagHexColor(item.name),
-      legendFontColor: '#6B7280',
-      legendFontSize: 12,
+      item,
+      index,
+      start,
+      end,
+      mid: start + angle / 2,
+      color: item.name === '暂无' ? colors.border : getTagHexColor(item.name),
     };
   });
 
-  // Hack for react-native-chart-kit: If we don't want it to show the value on the pie slice itself,
-  // we can use a transparent color for the label using chartConfig.
-
-
   return (
-    <View style={styles.reportPanel}>
-      <View style={styles.reportHeader}>
-        <Text style={styles.reportTitle}>数据报表</Text>
-        <SegmentedControl value={reportType} onChange={setReportType} options={[{ label: '周', value: 'weekly' }, { label: '月', value: 'monthly' }, { label: '年', value: 'yearly' }, { label: '自定义', value: 'custom' }]} />
-      </View>
-      {reportType === 'weekly' ? <DateField label="周" value={reportWeek} onChangeText={setReportWeek} mode="week" /> : null}
-      {reportType === 'monthly' ? <DateField label="月份" value={reportMonth} onChangeText={setReportMonth} mode="month" /> : null}
-      {reportType === 'yearly' ? <DateField label="年份" value={reportYear} onChangeText={setReportYear} mode="year" /> : null}
-      {reportType === 'custom' ? (
-        <View style={styles.amountRow}>
-          <View style={styles.formColumn}>
-            <DateField label="开始日期" value={customStartDate} onChangeText={setCustomStartDate} />
-          </View>
-          <View style={styles.formColumn}>
-            <DateField label="结束日期" value={customEndDate} onChangeText={setCustomEndDate} />
-          </View>
-        </View>
-      ) : null}
-
-      <View style={styles.reportTotalBox}>
-        <Text style={styles.billSummaryLabel}>本期{activeTab === 'expense' ? '总支出' : '总收入'}</Text>
-        <Text style={[styles.billSummaryValue, { color: activeTab === 'expense' ? colors.danger : colors.success }]}>{activeTab === 'expense' ? '-' : '+'}{formatCurrency(filteredTotalAmount)}</Text>
-      </View>
-
-      <SegmentedControl value={chartType} onChange={setChartType} options={[{ label: '占比', value: 'proportion' }, { label: '趋势', value: 'trend' }]} />
-      
-      {chartType === 'proportion' && (
-        <SegmentedControl value={proportionType} onChange={setProportionType} options={[{ label: '环状图', value: 'donut' }, { label: '饼图', value: 'pie' }]} />
-      )}
-      {chartType === 'trend' && (
-        <SegmentedControl value={trendType} onChange={setTrendType} options={[{ label: '折线图', value: 'line' }, { label: '柱状图', value: 'bar' }]} />
-      )}
-
-      {activeTab === 'expense' && chartType === 'proportion' ? (
-        <SegmentedControl value={expenseChartLevel} onChange={setExpenseChartLevel} options={[{ label: '账单', value: 'bill' }, { label: '类别', value: 'category' }, { label: '子类别', value: 'subcategory' }]} />
-      ) : null}
-
-      {chartType === 'trend' ? (
-        <View style={styles.chartContainerCompact}>
-          {trendType === 'line' ? (
-            <LineChart
-              data={chartDataset}
-              width={screenWidth - spacing.lg * 4}
-              height={190}
-              chartConfig={{
-                backgroundColor: '#ffffff',
-                backgroundGradientFrom: '#ffffff',
-                backgroundGradientTo: '#ffffff',
-                fillShadowGradientFrom: activeTab === 'expense' ? '#f43f5e' : '#10b981',
-                fillShadowGradientFromOpacity: 0.4,
-                fillShadowGradientTo: '#ffffff',
-                fillShadowGradientToOpacity: 0.1,
-                decimalPlaces: 0,
-                color: (opacity = 1) => activeTab === 'expense' ? `rgba(220, 38, 38, ${opacity})` : `rgba(5, 150, 105, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-                propsForDots: { r: '3' },
-              }}
-              bezier
-              style={styles.chartStyle}
-              formatYLabel={(value) => Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(1)}k` : String(Number(value).toFixed(0))}
+    <View style={[styles.donutStage, { height: size + 96, width: stageWidth }]}> 
+      <Svg width={size} height={size} viewBox={'0 0 ' + size + ' ' + size} style={{ overflow: 'visible' }}>
+        <G>
+          {segments.map((segment) => (
+            <Path
+              key={segment.item.name + segment.index}
+              d={describeArc(center, center, radiusValue, segment.start, segment.end - 1)}
+              stroke={segment.color}
+              strokeWidth={strokeWidth}
+              strokeLinecap="butt"
+              fill="none"
             />
-          ) : (
-            <BarChart
-              data={chartDataset}
-              width={screenWidth - spacing.lg * 4}
-              height={190}
-              chartConfig={{
-                backgroundColor: '#ffffff',
-                backgroundGradientFrom: '#ffffff',
-                backgroundGradientTo: '#ffffff',
-                decimalPlaces: 0,
-                color: (opacity = 1) => activeTab === 'expense' ? `rgba(220, 38, 38, ${opacity})` : `rgba(5, 150, 105, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-              }}
-              style={styles.chartStyle}
-              yAxisLabel=""
-              yAxisSuffix=""
-              showBarTops={false}
-              fromZero
-            />
-          )}
-        </View>
-      ) : (
-        <View style={styles.breakdownList}>
-          {categoryData.length > 0 && (
-            <View style={[styles.chartContainerCompact, { position: 'relative' }]}>
-              <PieChart
-                data={pieData}
-                width={screenWidth - spacing.lg * 4}
-                height={200}
-                chartConfig={{
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                }}
-                accessor={"population"}
-                backgroundColor={"transparent"}
-                paddingLeft={"15"}
-                hasLegend={true}
-                absolute={false}
-                center={[0, 0]}
-              />
-              {proportionType === 'donut' && (
-                <View 
-                  style={{ 
-                    position: 'absolute', 
-                    width: 100, 
-                    height: 100, 
-                    borderRadius: 50, 
-                    backgroundColor: colors.surface,
-                    left: (screenWidth - spacing.lg * 4) / 4 + 15,
-                    top: 100,
-                    marginLeft: -50,
-                    marginTop: -50,
-                  }} 
-                />
-              )}
-            </View>
-          )}
-          {categoryData.length === 0 ? <Text style={styles.emptyBillText}>暂无图表数据</Text> : categoryData.map((item: any) => {
-            const percent = filteredTotalAmount > 0 ? item.value / filteredTotalAmount : 0;
-            const selected = selectedReportCategory === item.name;
+          ))}
+          {segments.slice(0, 10).map((segment) => {
+            const percent = total > 0 ? (segment.item.value / total) * 100 : 0;
+            // 只为占比大于等于5%的绘制带百分比的外部线
+            if (percent < 5) {
+                // 占比小于5%，画一根短线指出来即可
+                const arcPoint = polarToCartesian(center, center, radiusValue + strokeWidth / 2 + 1, segment.mid);
+                const elbow = polarToCartesian(center, center, radiusValue + strokeWidth / 2 + 8, segment.mid);
+                return (
+                    <Path
+                        key={'label-line-short-' + segment.item.name + segment.index}
+                        d={'M ' + arcPoint.x + ' ' + arcPoint.y + ' L ' + elbow.x + ' ' + elbow.y}
+                        stroke="#B0B0B0"
+                        strokeWidth={1}
+                        fill="none"
+                    />
+                );
+            }
+
+            const arcPoint = polarToCartesian(center, center, radiusValue + strokeWidth / 2 + 1, segment.mid);
+            const elbow = polarToCartesian(center, center, radiusValue + strokeWidth / 2 + 16, segment.mid);
+            const isRight = elbow.x >= center;
+            const endX = elbow.x + (isRight ? 12 : -12);
             return (
-              <Pressable key={item.name} onPress={() => setSelectedReportCategory(selected ? null : item.name)} style={[styles.breakdownItem, selected && styles.breakdownItemSelected]}>
-                <View style={styles.breakdownTop}>
-                  <Text style={styles.breakdownName}>{item.name}</Text>
-                  <Text style={styles.breakdownAmount}>{formatCurrency(item.value)}</Text>
+              <Path
+                key={'label-line-' + segment.item.name + segment.index}
+                d={'M ' + arcPoint.x + ' ' + arcPoint.y + ' L ' + elbow.x + ' ' + elbow.y + ' L ' + endX + ' ' + elbow.y}
+                stroke="#B0B0B0"
+                strokeWidth={1}
+                fill="none"
+              />
+            );
+          })}
+        </G>
+      </Svg>
+      <Pressable focusable={false} style={({ pressed }) => [styles.donutCenter, pressed && styles.pressed]} onPress={onToggleLevel}>
+        <Text style={styles.donutTitle}>{centerTitle}</Text>
+        <Ionicons name="swap-vertical" size={18} color={activeTab === 'income' ? colors.success : colors.danger} />
+        <Text style={styles.donutHint}>轻点切换</Text>
+      </Pressable>
+      {segments.slice(0, 10).map((segment) => {
+        const percent = total > 0 ? (segment.item.value / total) * 100 : 0;
+        const elbow = polarToCartesian(center, center, radiusValue + strokeWidth / 2 + 16, segment.mid);
+        const isRight = elbow.x >= center;
+        
+        if (percent < 5) {
+            // 小于 5% 只显示名字
+            const labelTop = Math.max(0, Math.min(size + 24, elbow.y - 8));
+            const rawLeft = offsetX + (isRight ? elbow.x + 4 : elbow.x - 56);
+            const labelLeft = Math.max(0, Math.min(stageWidth - 60, rawLeft));
+            return (
+                <View key={'label-' + segment.item.name + segment.index} style={[styles.donutLabelSmall, { left: labelLeft, top: labelTop, alignItems: isRight ? 'flex-start' : 'flex-end' }]}>
+                    <Text style={styles.donutLabelText}>{segment.item.name}</Text>
                 </View>
-                <View style={styles.breakdownTrack}>
-                  <View style={[styles.breakdownFill, { width: `${Math.max(3, percent * 100)}%`, backgroundColor: getTagHexColor(item.name) }]} />
-                </View>
-                <Text style={styles.breakdownPercent}>{(percent * 100).toFixed(1)}%</Text>
-              </Pressable>
+            );
+        }
+
+        // 大于等于 5% 显示名字和百分比
+        const labelTop = Math.max(0, Math.min(size + 24, elbow.y - 18));
+        const rawLeft = offsetX + (isRight ? elbow.x + 20 : elbow.x - 84);
+        const labelLeft = Math.max(0, Math.min(stageWidth - 90, rawLeft));
+        return (
+          <View key={'label-' + segment.item.name + segment.index} style={[styles.donutLabel, { left: labelLeft, top: labelTop, alignItems: isRight ? 'flex-start' : 'flex-end' }]}>
+            <Text style={styles.donutLabelText}>{segment.item.name}</Text>
+            <Text style={styles.donutLabelPercent}>{percent.toFixed(2)}%</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function TreemapBreakdown({ data, total }: { data: any[]; total: number }) {
+  const items = data.slice(0, 6);
+  if (items.length === 0) return <View style={styles.treemapEmpty}><Text style={styles.emptyBillText}>暂无面积数据</Text></View>;
+  return (
+    <View style={styles.treemap}>
+      {items.map((item, index) => {
+        const percent = total > 0 ? (item.value / total) * 100 : 0;
+        return (
+          <View key={item.name} style={[styles.treemapTile, styles['treemapTile' + index as keyof typeof styles] as any, { backgroundColor: getTagSoftColor(item.name) }]}>
+            <Text style={[styles.treemapName, { color: getTagHexColor(item.name) }]}>{item.name}</Text>
+            <Text style={[styles.treemapPercent, { color: getTagHexColor(item.name) }]}>{percent.toFixed(2)}%</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function FinanceCalendarView({ activeTab, setActiveTab, calendarData, totalAmount, dailyAverage, reportMonth }: any) {
+  return (
+    <View style={{ gap: spacing.md }}>
+      <View style={{ flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' }}>
+        <Pressable 
+          onPress={() => setActiveTab('expense')}
+          style={({ pressed }) => [
+            styles.bentoCard,
+            { backgroundColor: activeTab === 'expense' ? colors.danger + '15' : colors.surface, padding: spacing.lg, justifyContent: 'center' },
+            pressed && styles.pressed
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs }}>
+            <View style={[styles.bentoIconWrapper, { backgroundColor: activeTab === 'expense' ? colors.danger + '25' : colors.surfaceMuted, width: 36, height: 36, borderRadius: 12 }]}>
+              <Text style={{ fontSize: 16 }}>💸</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: activeTab === 'expense' ? colors.danger : colors.textSoft }}>月支出</Text>
+          </View>
+          <Text style={{ fontSize: 22, fontWeight: '900', color: activeTab === 'expense' ? colors.danger : colors.text }}>{formatCurrency(totalAmount)}</Text>
+        </Pressable>
+
+        <Pressable 
+          onPress={() => setActiveTab('income')}
+          style={({ pressed }) => [
+            styles.bentoCard,
+            { backgroundColor: activeTab === 'income' ? colors.success + '15' : colors.surface, padding: spacing.lg, justifyContent: 'center' },
+            pressed && styles.pressed
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs }}>
+            <View style={[styles.bentoIconWrapper, { backgroundColor: activeTab === 'income' ? colors.success + '25' : colors.surfaceMuted, width: 36, height: 36, borderRadius: 12 }]}>
+              <Text style={{ fontSize: 16 }}>💰</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: activeTab === 'income' ? colors.success : colors.textSoft }}>日均</Text>
+          </View>
+          <Text style={{ fontSize: 22, fontWeight: '900', color: activeTab === 'income' ? colors.success : colors.text }}>{formatCurrency(dailyAverage)}</Text>
+        </Pressable>
+      </View>
+
+      <View style={[styles.bentoCardPanel, { backgroundColor: colors.surface, padding: spacing.lg }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
+          {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day) => (
+            <Text key={day} style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: '700', color: colors.muted }}>{day}</Text>
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8 }}>
+          {calendarData.cells.map((cell: any) => {
+            const heat = cell.currentMonth ? Math.min(1, cell.total / Math.max(1, calendarData.maxDayTotal)) : 0;
+            const heatColorValue = cell.currentMonth ? heatColorPastel(heat, activeTab) : 'transparent';
+            const cellColor = cell.currentMonth ? (cell.total > 0 ? (activeTab === 'expense' ? colors.danger : colors.success) : colors.text) : colors.muted;
+            
+            return (
+              <View key={cell.key} style={[{ width: '13%', aspectRatio: 0.8, borderRadius: 12, justifyContent: 'center', alignItems: 'center' }, cell.currentMonth && { backgroundColor: heatColorValue }, cell.selected && { borderWidth: 1.5, borderColor: activeTab === 'expense' ? colors.danger : colors.success }]}>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: cellColor }}>{cell.day}</Text>
+                {cell.currentMonth && cell.total > 0 ? <Text style={{ fontSize: 9, fontWeight: '700', color: cellColor, marginTop: 2 }}>{activeTab === 'expense' ? '-' : '+'}{Number(cell.total).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}</Text> : null}
+              </View>
             );
           })}
         </View>
-      )}
+      </View>
     </View>
   );
+}
+
+function heatColorPastel(value: number, type: 'expense' | 'income') {
+  if (value <= 0) return colors.surfaceMuted;
+  if (type === 'expense') {
+    if (value < 0.25) return '#fee2e2'; // red-100
+    if (value < 0.5) return '#fecaca'; // red-200
+    if (value < 0.75) return '#fca5a5'; // red-300
+    return '#f87171'; // red-400
+  } else {
+    if (value < 0.25) return '#dcfce7'; // green-100
+    if (value < 0.5) return '#bbf7d0'; // green-200
+    if (value < 0.75) return '#86efac'; // green-300
+    return '#4ade80'; // green-400
+  }
+}
+
+function PeriodPickerSheet({
+  visible,
+  reportType,
+  reportWeek,
+  reportMonth,
+  reportYear,
+  customStartDate,
+  customEndDate,
+  onClose,
+  onConfirm,
+}: {
+  visible: boolean;
+  reportType: ReportType;
+  reportWeek: string;
+  reportMonth: string;
+  reportYear: string;
+  customStartDate: string;
+  customEndDate: string;
+  onClose: () => void;
+  onConfirm: (next: { type: ReportType; week: string; month: string; year: string; start: string; end: string }) => void;
+}) {
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const [draftType, setDraftType] = useState<ReportType>(reportType);
+  const [draftWeek, setDraftWeek] = useState(reportWeek);
+  const [draftMonth, setDraftMonth] = useState(reportMonth);
+  const [draftYear, setDraftYear] = useState(reportYear);
+  const [draftStart, setDraftStart] = useState(customStartDate);
+  const [draftEnd, setDraftEnd] = useState(customEndDate);
+
+  useEffect(() => {
+    if (visible) {
+      setDraftType(reportType);
+      setDraftWeek(reportWeek);
+      setDraftMonth(reportMonth);
+      setDraftYear(reportYear);
+      setDraftStart(customStartDate);
+      setDraftEnd(customEndDate);
+      bottomSheetRef.current?.present();
+    } else {
+      bottomSheetRef.current?.dismiss();
+    }
+  }, [visible, reportType, reportWeek, reportMonth, reportYear, customStartDate, customEndDate]);
+
+  const handleSheetChanges = useCallback((index: number) => {
+    if (index === -1) {
+      onClose();
+    }
+  }, [onClose]);
+
+  const modes: { label: string; value: ReportType }[] = [
+    { label: '周', value: 'weekly' },
+    { label: '月', value: 'monthly' },
+    { label: '年', value: 'yearly' },
+    { label: '自定义', value: 'custom' },
+  ];
+  const weeks = buildWeekPickerRows(draftWeek);
+  const yearStart = Math.max(2000, Math.floor((Number(draftYear) - 2024) / 12) * 12 + 2024);
+  const years = Array.from({ length: 12 }, (_, index) => String(yearStart + index));
+  const sheetBigTitle = draftType === 'weekly' || draftType === 'monthly' ? draftYear + '年'
+    : draftType === 'yearly' ? years[0] + '年-' + years[years.length - 1] + '年'
+      : '选择时间范围';
+
+  const shiftBackward = () => {
+    if (draftType === 'weekly') setDraftWeek(shiftWeekValue(draftWeek, -4));
+    else if (draftType === 'yearly') setDraftYear(String(Number(draftYear) - 12));
+    else setDraftYear(String(Number(draftYear) - 1));
+  };
+  const shiftForward = () => {
+    if (draftType === 'weekly') setDraftWeek(shiftWeekValue(draftWeek, 4));
+    else if (draftType === 'yearly') setDraftYear(String(Number(draftYear) + 12));
+    else setDraftYear(String(Number(draftYear) + 1));
+  };
+  const commit = () => {
+    const range = weekRange(draftWeek);
+    const nextMonth = draftType === 'weekly' && range ? range.start.slice(0, 7)
+      : draftType === 'yearly' ? draftYear + '-01'
+        : draftType === 'custom' ? (draftStart || todayDate()).slice(0, 7)
+          : draftMonth;
+    const nextYear = draftType === 'monthly' ? draftMonth.slice(0, 4)
+      : draftType === 'weekly' && range ? range.start.slice(0, 4)
+        : draftType === 'custom' ? (draftStart || todayDate()).slice(0, 4)
+          : draftYear;
+    onConfirm({ type: draftType, week: draftWeek, month: nextMonth, year: nextYear, start: draftStart, end: draftEnd });
+  };
+
+  return (
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={['75%', '90%']}
+      index={0}
+      onChange={handleSheetChanges}
+      backdropComponent={(props) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.4} />}
+      backgroundStyle={styles.bottomSheetBg}
+      handleIndicatorStyle={styles.bottomSheetIndicator}
+    >
+      <BottomSheetScrollView contentContainerStyle={styles.financeContent}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
+          <Text style={styles.sheetTitle}>选择时间范围</Text>
+        </View>
+
+        <SegmentedControl 
+          value={draftType} 
+          onChange={(value) => setDraftType(value as ReportType)} 
+          options={modes} 
+        />
+
+        {draftType !== 'custom' ? (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, marginBottom: spacing.sm }}>
+            <Text style={{ fontSize: 24, fontWeight: '900', color: colors.text }}>{sheetBigTitle}</Text>
+            <View style={{ flexDirection: 'row', gap: spacing.md }}>
+              <Pressable onPress={shiftBackward} style={({ pressed }) => [{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceMuted, justifyContent: 'center', alignItems: 'center' }, pressed && styles.pressed]}>
+                <Ionicons name="chevron-up" size={24} color={colors.text} />
+              </Pressable>
+              <Pressable onPress={shiftForward} style={({ pressed }) => [{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceMuted, justifyContent: 'center', alignItems: 'center' }, pressed && styles.pressed]}>
+                <Ionicons name="chevron-down" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        {draftType === 'weekly' ? (
+          <View style={{ gap: spacing.sm }}>
+            {weeks.map((week) => (
+              <Pressable 
+                key={week.value} 
+                onPress={() => setDraftWeek(week.value)} 
+                style={({ pressed }) => [
+                  { padding: spacing.lg, borderRadius: radius.xl, backgroundColor: draftWeek === week.value ? colors.primary + '15' : colors.surfaceMuted, borderWidth: 1, borderColor: draftWeek === week.value ? colors.primary : 'transparent' },
+                  pressed && styles.pressed
+                ]}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '800', color: draftWeek === week.value ? colors.primary : colors.text }}>{week.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {draftType === 'monthly' ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            {Array.from({ length: 12 }, (_, index) => {
+              const month = String(index + 1).padStart(2, '0');
+              const monthValue = draftYear + '-' + month;
+              const selected = draftMonth === monthValue;
+              const future = monthValue > currentMonthValue();
+              return (
+                <Pressable 
+                  key={monthValue} 
+                  disabled={future} 
+                  onPress={() => setDraftMonth(monthValue)} 
+                  style={({ pressed }) => [
+                    { width: '31%', aspectRatio: 1.5, borderRadius: radius.xl, backgroundColor: selected ? colors.primary : colors.surfaceMuted, justifyContent: 'center', alignItems: 'center', opacity: future ? 0.4 : 1 },
+                    pressed && styles.pressed
+                  ]}
+                >
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: selected ? colors.surface : colors.text }}>{index + 1}月</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {draftType === 'yearly' ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            {years.map((yearValue) => {
+              const selected = draftYear === yearValue;
+              const future = yearValue > String(new Date().getFullYear());
+              return (
+                <Pressable 
+                  key={yearValue} 
+                  disabled={future} 
+                  onPress={() => setDraftYear(yearValue)} 
+                  style={({ pressed }) => [
+                    { width: '31%', aspectRatio: 1.5, borderRadius: radius.xl, backgroundColor: selected ? colors.primary : colors.surfaceMuted, justifyContent: 'center', alignItems: 'center', opacity: future ? 0.4 : 1 },
+                    pressed && styles.pressed
+                  ]}
+                >
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: selected ? colors.surface : colors.text }}>{yearValue}年</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {draftType === 'custom' ? (
+          <View style={{ gap: spacing.md, marginTop: spacing.md }}>
+            <View style={{ flex: 1 }}><DateField label="开始时间" value={draftStart} onChangeText={setDraftStart} /></View>
+            <View style={{ flex: 1 }}><DateField label="结束时间" value={draftEnd} onChangeText={setDraftEnd} /></View>
+          </View>
+        ) : null}
+
+        <View style={styles.formActions}>
+          <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
+          <View style={{ flex: 1 }}>
+            <PrimaryButton label="确定" icon="checkmark" onPress={commit} />
+          </View>
+        </View>
+      </BottomSheetScrollView>
+    </BottomSheetModal>
+  );
+}
+
+function formatMonthTitle(month: string) {
+  const [year, mon] = month.split('-');
+  return year + '年' + Number(mon || 1) + '月';
+}
+
+function formatDateCN(date: string) {
+  const [, month, day] = date.split('-');
+  return `${Number(month)}月${Number(day)}日`;
+}
+
+function formatReportTitle(type: ReportType, week: string, month: string, year: string, start: string, end: string) {
+  if (type === 'weekly') {
+    const range = weekRange(week);
+    return range ? `${formatDateCN(range.start)}-${formatDateCN(range.end)}` : '周账单';
+  }
+  if (type === 'yearly') return `${year}年`;
+  if (type === 'custom') return `${formatDateCN(start)}-${formatDateCN(end)}`;
+  return formatMonthTitle(month);
+}
+
+function parseDateValue(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function shiftWeekValue(value: string, deltaWeeks: number) {
+  const range = weekRange(value);
+  const start = range ? parseDateValue(range.start) : new Date();
+  start.setDate(start.getDate() + deltaWeeks * 7);
+  return weekStringForReport(start);
+}
+
+function weekStringForReport(date: Date) {
+  const start = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor((date.getTime() - start.getTime()) / 86400000);
+  const week = Math.ceil((days + start.getDay() + 1) / 7);
+  return `${date.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function buildWeekPickerRows(centerWeek: string) {
+  return [-3, -2, -1, 0, 1, 2, 3].map((offset) => {
+    const value = shiftWeekValue(centerWeek, offset);
+    const range = weekRange(value);
+    const weekNo = Number(value.split('-W')[1]);
+    const relation = offset === 0 ? '本周' : offset === -1 ? '上周' : `第${weekNo}周`;
+    return {
+      value,
+      label: range ? `${formatDateCN(range.start)}-${formatDateCN(range.end)}（${relation}）` : value,
+    };
+  });
+}
+
+function polarToCartesian(centerX: number, centerY: number, radiusValue: number, angleInDegrees: number) {
+  const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+  return { x: centerX + (radiusValue * Math.cos(angleInRadians)), y: centerY + (radiusValue * Math.sin(angleInRadians)) };
+}
+
+function describeArc(x: number, y: number, radiusValue: number, startAngle: number, endAngle: number) {
+  const start = polarToCartesian(x, y, radiusValue, endAngle);
+  const end = polarToCartesian(x, y, radiusValue, startAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+  return ['M', start.x, start.y, 'A', radiusValue, radiusValue, 0, largeArcFlag, 0, end.x, end.y].join(' ');
+}
+
+function getXqCategoryColor(name: string) {
+  const palette = ['#315bd8', '#2f343a', '#d85b50', '#75a9df', '#53935f', '#dd8b36'];
+  const hash = name.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return palette[hash % palette.length];
+}
+
+function getCategoryIcon(name: string): keyof typeof Ionicons.glyphMap {
+  if (/食|餐|菜|饭|吃|喝/.test(name)) return 'restaurant-outline';
+  if (/车|贷|供|房|月供/.test(name)) return 'card-outline';
+  if (/软件|数码|外设|电脑|手机/.test(name)) return 'phone-portrait-outline';
+  if (/衣|服/.test(name)) return 'shirt-outline';
+  if (/物业|电|水|家/.test(name)) return 'home-outline';
+  if (/薪|工资|收入/.test(name)) return 'cash-outline';
+  return 'apps-outline';
+}
+
+function buildMonthCalendar(month: string, finances: FinanceItem[], activeTab: 'expense' | 'income') {
+  const [year, monthRaw] = month.split('-').map(Number);
+  const first = new Date(year, monthRaw - 1, 1);
+  const daysInMonth = new Date(year, monthRaw, 0).getDate();
+  const mondayFirst = (first.getDay() + 6) % 7;
+  const prevDays = new Date(year, monthRaw - 1, 0).getDate();
+  const totals = new Map<string, number>();
+  finances.filter((item) => item.transaction_type === activeTab).forEach((item) => {
+    const key = item.transaction_date;
+    totals.set(key, (totals.get(key) || 0) + Number(item.amount || 0));
+  });
+  const cells: any[] = [];
+  for (let index = mondayFirst - 1; index >= 0; index -= 1) {
+    const day = prevDays - index;
+    cells.push({ key: 'p' + day, day, currentMonth: false, total: 0 });
+  }
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const key = month + '-' + String(day).padStart(2, '0');
+    cells.push({ key, day, currentMonth: true, selected: key === todayDate(), total: totals.get(key) || 0 });
+  }
+  let next = 1;
+  while (cells.length < 35) {
+    cells.push({ key: 'n' + next, day: next, currentMonth: false, total: 0 });
+    next += 1;
+  }
+  const maxDayTotal = Math.max(1, ...cells.map((cell) => cell.total));
+  const activeDays = cells.filter((cell) => cell.currentMonth && cell.total > 0).length;
+  return { cells, maxDayTotal, activeDays };
+}
+
+function heatColor(value: number) {
+  if (value <= 0) return '#FCEDEF';
+  if (value < 0.25) return '#F7CDD4';
+  if (value < 0.5) return '#F0A2AD';
+  if (value < 0.75) return '#E66E7F';
+  return '#E95362';
 }
 
 function IncomeAnalysis({ onBack }: { onBack: () => void }) {
@@ -1415,9 +1918,10 @@ function IncomeAnalysis({ onBack }: { onBack: () => void }) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartFilterScroll}>
           <Pressable 
             onPress={() => setFilterCategory(null)}
-            style={[
+            style={({ pressed }) => [
               styles.chartFilterBtn,
-              filterCategory === null ? { backgroundColor: '#2563eb', borderColor: '#2563eb' } : null
+              filterCategory === null ? { backgroundColor: '#2563eb', borderColor: '#2563eb' } : null,
+              pressed && styles.pressed
             ]}
           >
             <Text style={[styles.chartFilterBtnText, filterCategory === null ? { color: '#fff' } : null]}>到手合计</Text>
@@ -1430,10 +1934,11 @@ function IncomeAnalysis({ onBack }: { onBack: () => void }) {
               <Pressable
                 key={cat}
                 onPress={() => setFilterCategory(cat)}
-                style={[
+                style={({ pressed }) => [
                   styles.chartFilterBtn,
                   { borderColor: hex },
-                  isSelected ? { backgroundColor: hex } : null
+                  isSelected ? { backgroundColor: hex } : null,
+                  pressed && styles.pressed
                 ]}
               >
                 <Text style={[
@@ -1449,7 +1954,7 @@ function IncomeAnalysis({ onBack }: { onBack: () => void }) {
       <View style={styles.chartContainer}>
         <LineChart
           data={chartDataObj}
-          width={screenWidth - spacing.lg * 2}
+          width={screenWidth - spacing.lg * 2 - spacing.sm * 2}
           height={220}
           chartConfig={{
             backgroundColor: '#ffffff',
@@ -1700,6 +2205,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
   },
+  reportContent: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxl,
+  },
   billPanel: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
@@ -1885,49 +2396,137 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: spacing.xs,
   },
+  billSummaryValueCompact: {
+    fontSize: 17,
+    fontWeight: '900',
+    marginTop: 2,
+  },
   reportPanel: {
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    gap: spacing.md,
+    borderRadius: radius.lg,
+    gap: spacing.sm,
     overflow: 'hidden',
-    padding: spacing.lg,
+    padding: spacing.md,
     ...shadow,
   },
   reportHeader: {
+    gap: spacing.xs,
+  },
+  reportTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: spacing.sm,
+    justifyContent: 'space-between',
   },
   reportTitle: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '900',
+  },
+  reportSubtitle: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  compactSegmented: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 9999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 2,
+    padding: 2,
+  },
+  compactSegmentButton: {
+    alignItems: 'center',
+    borderRadius: 9999,
+    justifyContent: 'center',
+    minHeight: 28,
+    minWidth: 40,
+    paddingHorizontal: 10,
+  },
+  compactSegmentButtonSelected: {
+    backgroundColor: colors.text,
+  },
+  compactSegmentText: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  compactSegmentTextSelected: {
+    color: colors.surface,
+  },
+  reportSummaryRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  reportSummaryCard: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  reportFilterRow: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  reportDateBox: {
+    flex: 1,
+    minHeight: 54,
+    justifyContent: 'center',
+  },
+  reportCustomDateRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  reportControlGrid: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
   },
   reportTotalBox: {
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 54,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   chartContainerCompact: {
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     borderWidth: 1,
     overflow: 'hidden',
   },
   chartStyle: {
-    borderRadius: radius.xl,
-    marginVertical: spacing.sm,
+    borderRadius: radius.lg,
+    marginVertical: spacing.xs,
   },
   breakdownList: {
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   breakdownItem: {
     backgroundColor: colors.surfaceMuted,
     borderColor: 'transparent',
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
-    gap: spacing.xs,
-    padding: spacing.md,
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   breakdownItemSelected: {
     backgroundColor: colors.primarySoft,
@@ -1942,12 +2541,12 @@ const styles = StyleSheet.create({
   breakdownName: {
     color: colors.text,
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
   },
   breakdownAmount: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
   },
   breakdownTrack: {
@@ -1962,10 +2561,83 @@ const styles = StyleSheet.create({
   },
   breakdownPercent: {
     color: colors.muted,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
     textAlign: 'right',
   },
+
+  donutStage: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingBottom: 40,
+    overflow: 'visible',
+  },
+  donutCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+  },
+  donutTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  donutHint: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  donutLabel: {
+    maxWidth: 96,
+    position: 'absolute',
+    width: 90,
+  },
+  donutLabelSmall: {
+    maxWidth: 60,
+    position: 'absolute',
+    width: 60,
+  },
+  donutLabelText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  donutLabelPercent: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  treemap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    height: 200,
+    marginTop: 16,
+  },
+  treemapEmpty: {
+    alignItems: 'center',
+    height: 200,
+    justifyContent: 'center',
+  },
+  treemapTile: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 6,
+    justifyContent: 'flex-end',
+    padding: 8,
+  },
+  treemapTile0: { height: 200, width: '33%' },
+  treemapTile1: { height: 200, width: '33%' },
+  treemapTile2: { height: 64, width: '30%' },
+  treemapTile3: { height: 64, width: '30%' },
+  treemapTile4: { height: 64, width: '30%' },
+  treemapTile5: { height: 64, width: '30%' },
+  treemapName: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  treemapPercent: { color: colors.textSoft, fontSize: 13, fontWeight: '700', marginTop: 2 },
   billList: {
     gap: spacing.lg,
     paddingTop: spacing.md,
@@ -2074,5 +2746,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     textAlign: 'center',
+  },
+  bentoCard: {
+    width: '47.5%',
+    aspectRatio: 1.05,
+    borderRadius: 24,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: colors.surface,
+    ...shadow,
+    elevation: 8,
+  },
+  bentoCardLarge: {
+    width: '100%',
+    aspectRatio: 2.1,
+    borderRadius: 24,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: colors.surface,
+    ...shadow,
+    elevation: 8,
+  },
+  bentoCardPanel: {
+    width: '100%',
+    borderRadius: 24,
+    overflow: 'visible',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: colors.surface,
+    ...shadow,
+    elevation: 8,
+  },
+  bentoIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });

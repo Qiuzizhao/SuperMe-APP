@@ -410,7 +410,7 @@ function EditModal({
   onSave,
 }: {
   config: ModuleConfig;
-  bottomSheetRef: React.RefObject<BottomSheetModal>;
+  bottomSheetRef: React.RefObject<BottomSheetModal | null>;
   editing: RecordItem | null;
   form: FormState;
   saving: boolean;

@@ -102,10 +102,6 @@ function Tag({ label, tone = 'gray' }: { label: string; tone?: 'gray' | 'blue' |
   return <Text style={[styles.tag, styles[`tag_${tone}`]]}>{label}</Text>;
 }
 
-function DeleteButton({ onPress }: { onPress: () => void }) {
-  return <IconButton name="trash-outline" label="删除" color={colors.danger} onPress={onPress} />;
-}
-
 function confirmRemove(label: string, onConfirm: () => void) {
   Alert.alert('删除确认', `确定删除「${label}」吗？`, [
     { text: '取消', style: 'cancel' },
@@ -152,6 +148,8 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
   const [level, setLevel] = useState(3);
   const [emotion, setEmotion] = useState('');
   const [content, setContent] = useState('');
+  const [editingMood, setEditingMood] = useState<Item | null>(null);
+  const [expandedMoodIds, setExpandedMoodIds] = useState<Record<number, boolean>>({});
   const [moodAssetsReady, setMoodAssetsReady] = useState(false);
 
   useEffect(() => {
@@ -169,23 +167,41 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
     };
   }, []);
 
-  const addMood = async () => {
+  const openCreateMood = () => {
+    setEditingMood(null);
+    setLevel(3);
+    setEmotion('');
+    setContent('');
+    bottomSheetRef.current?.present();
+  };
+
+  const openEditMood = (item: Item) => {
+    setEditingMood(item);
+    setLevel(Number(item.mood_level || 3));
+    setEmotion(safeNoteText(item.emotion));
+    setContent(safeNoteText(item.content ?? item.note));
+    bottomSheetRef.current?.present();
+  };
+
+  const toggleMoodDetail = (id: number) => {
+    setExpandedMoodIds((current) => ({ ...current, [id]: !current[id] }));
+  };
+
+  const saveMood = async () => {
     const mood = moodByLevel(level);
-    await apiRequest('/moods/', {
-      method: 'POST',
-      body: { mood_level: level, mood_label: mood.label, content: content.trim() || null, emotion: emotion.trim() || null },
-    });
+    const body = { mood_level: level, mood_label: mood.label, content: content.trim() || null, emotion: emotion.trim() || null };
+    if (editingMood) {
+      await apiRequest(`/notes/${editingMood.id}`, { method: 'PUT', body });
+    } else {
+      await apiRequest('/moods/', { method: 'POST', body });
+    }
     bottomSheetRef.current?.dismiss();
+    setEditingMood(null);
     setLevel(3);
     setEmotion('');
     setContent('');
     await load();
   };
-
-  const remove = (item: Item) => confirmRemove(item.mood_label || '心情记录', async () => {
-    await apiRequest(`/moods/${item.id}`, { method: 'DELETE' });
-    await load();
-  });
 
   return (
     <ScreenShell title="心情" subtitle={`${items.length} 条情绪记录 · 心情五线谱`} onBack={onBack}>
@@ -198,27 +214,31 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
         <View style={styles.timeline}>
           {items.map((item) => {
             const mood = moodByLevel(Number(item.mood_level));
+            const expanded = Boolean(expandedMoodIds[item.id]);
+            const noteText = safeNoteText(item.content ?? item.note);
             return (
-              <SectionCard key={item.id}>
-                <View style={styles.rowTop}>
-                  <View style={styles.row}>
-                    {moodAssetsReady ? <ExpoImage source={mood.emoji} style={styles.emojiImage} contentFit="contain" transition={0} cachePolicy="memory-disk" /> : null}
-                    <View>
-                      <Text style={styles.itemTitle}>{item.mood_label}</Text>
-                      <Text style={styles.metaText}>{compactDateTime(item.created_at)}</Text>
+              <Pressable key={item.id} onPress={() => toggleMoodDetail(item.id)} onLongPress={() => openEditMood(item)} delayLongPress={350}>
+                <SectionCard>
+                  <View style={styles.rowTop}>
+                    <View style={styles.row}>
+                      {moodAssetsReady ? <ExpoImage source={mood.emoji} style={styles.emojiImage} contentFit="contain" transition={0} cachePolicy="memory-disk" /> : null}
+                      <View>
+                        <Text style={styles.itemTitle}>{item.mood_label}</Text>
+                        <Text style={styles.metaText}>{compactDateTime(item.created_at)}</Text>
+                      </View>
                     </View>
+                    <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
                   </View>
-                  <DeleteButton onPress={() => remove(item)} />
-                </View>
-                {item.emotion ? <Tag label={item.emotion} tone="purple" /> : null}
-                {item.content ? <Text style={styles.bodyText}>{item.content}</Text> : null}
-              </SectionCard>
+                  {item.emotion ? <Tag label={item.emotion} tone="purple" /> : null}
+                  {noteText && expanded ? <Text style={styles.bodyText}>{noteText}</Text> : null}
+                </SectionCard>
+              </Pressable>
             );
           })}
         </View>
       </ScrollView>
 
-      <Pressable style={styles.fab} onPress={() => bottomSheetRef.current?.present()}>
+      <Pressable style={styles.fab} onPress={openCreateMood}>
         <LinearGradient
           colors={['#A855F7', '#7E22CE']}
           style={styles.fabGradient}
@@ -236,7 +256,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
         handleIndicatorStyle={styles.bottomSheetIndicator}
       >
         <BottomSheetScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-          <Text style={styles.sheetTitle}>记录此刻心情</Text>
+          <Text style={styles.sheetTitle}>{editingMood ? '编辑心情' : '记录此刻心情'}</Text>
           <View style={{ height: spacing.lg }} />
           <View style={styles.moodPicker}>
             {moodOptions.map((mood) => (
@@ -251,7 +271,7 @@ export function MoodScreen({ onBack }: { onBack: () => void }) {
           <View style={styles.formActions}>
             <PrimaryButton label="取消" tone="plain" onPress={() => bottomSheetRef.current?.dismiss()} />
             <View style={{ flex: 1 }}>
-              <PrimaryButton label="打卡" icon="checkmark" onPress={() => void addMood()} />
+              <PrimaryButton label={editingMood ? '保存修改' : '打卡'} icon="checkmark" onPress={() => void saveMood()} />
             </View>
           </View>
         </BottomSheetScrollView>
@@ -438,7 +458,7 @@ export function NoteScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function NoteModal({ bottomSheetRef, visible, title, onClose, onSubmit, initialData, moodAssetsReady, onDelete }: { bottomSheetRef: React.RefObject<BottomSheetModal>; visible: boolean; title: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => void; initialData?: Item | null; moodAssetsReady?: boolean; onDelete?: () => void }) {
+function NoteModal({ bottomSheetRef, visible, title, onClose, onSubmit, initialData, moodAssetsReady, onDelete }: { bottomSheetRef: React.RefObject<BottomSheetModal | null>; visible: boolean; title: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => void; initialData?: Item | null; moodAssetsReady?: boolean; onDelete?: () => void }) {
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [mood, setMood] = useState<typeof moodOptions[number] | null>(null);
@@ -810,7 +830,6 @@ function GroupedLogList({ groups, onLongPress }: { groups: ReturnType<typeof gro
                       {item.location ? <Tag label={`📍 ${item.location}`} /> : null}
                     </View>
                     {item.notes ? <Text style={styles.metaText}>备注：{item.notes}</Text> : null}
-                    <Text style={styles.metaText}>长按可编辑</Text>
                   </View>
                 </View>
               </Pressable>
