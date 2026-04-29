@@ -3,9 +3,9 @@ import { Redirect } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { Field, PrimaryButton } from '@/src/components/ui';
+import { Field, PrimaryButton } from '@/src/shared/components';
 import { useAuth } from '@/src/auth/AuthContext';
-import { colors, radius, shadow, spacing } from '@/src/theme';
+import { colors, radius, shadow, spacing } from '@/src/shared/theme';
 
 export default function LoginScreen() {
   const { isReady, isAuthenticated, login } = useAuth();

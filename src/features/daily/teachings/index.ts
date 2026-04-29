@@ -1,0 +1,1 @@
+export { TeachingScreen } from './TeachingScreen';

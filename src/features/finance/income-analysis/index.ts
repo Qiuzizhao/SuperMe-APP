@@ -1,0 +1,1 @@
+export { IncomeAnalysis } from './IncomeAnalysis';

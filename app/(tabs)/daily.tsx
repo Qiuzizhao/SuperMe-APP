@@ -1,15 +1,13 @@
-import { CrudScreen } from '@/src/features/CrudScreen';
-import {
-  FootprintScreen,
-  MoodScreen,
-  NoteScreen,
-  ReadingScreen,
-  TeachingScreen,
-  WishlistScreen,
-  WorkLogScreen,
-} from '@/src/features/ReplicatedScreens';
-import { TodoScreen } from '@/src/features/TodoScreen';
-import { dailyModules } from '@/src/features/moduleConfig';
+import { CrudScreen } from '@/src/features/crud';
+import { FootprintScreen } from '@/src/features/daily/footprints';
+import { MoodScreen } from '@/src/features/daily/moods';
+import { NoteScreen } from '@/src/features/daily/notes';
+import { ReadingScreen } from '@/src/features/daily/readings';
+import { TeachingScreen } from '@/src/features/daily/teachings';
+import { TodoScreen } from '@/src/features/daily/todos';
+import { WishlistScreen } from '@/src/features/daily/wishlists';
+import { WorkLogScreen } from '@/src/features/daily/worklogs';
+import { dailyModules } from '@/src/features/modules';
 
 export default function DailyRoute() {
   const renderDailyModule = ({ module, onBack }: { module: { key: string }; onBack: () => void }) => {

@@ -1,0 +1,1 @@
+export { FootprintScreen } from './FootprintScreen';

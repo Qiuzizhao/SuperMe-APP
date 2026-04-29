@@ -1,0 +1,1 @@
+export { normalizeIncomeConfig } from './incomeConfig';
